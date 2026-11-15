@@ -1,4 +1,6 @@
-import type { EonetEvent, Feed, Neo } from "./types";
+import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "./types";
+import epicSnapshot from "@/data/epic.json";
+import spaceSnapshot from "@/data/space.json";
 import eventsSnapshot from "@/data/events.json";
 import neosSnapshot from "@/data/neos.json";
 
@@ -130,3 +132,73 @@ export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: numbe
     Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(((bLng - aLng) * rad) / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
+
+const nasaKey = () => process.env.NASA_API_KEY || "DEMO_KEY";
+const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+const validTime = (t: unknown) => (typeof t === "string" && !Number.isNaN(Date.parse(t)) ? new Date(t).toISOString() : null);
+
+type Donki = Record<string, unknown>;
+
+async function getDonki(type: string): Promise<Donki[]> {
+  const res = await fetch(
+    `https://api.nasa.gov/DONKI/${type}?startDate=${utcDay(-30)}&endDate=${utcDay(0)}&api_key=${nasaKey()}`,
+    { signal: AbortSignal.timeout(15_000) },
+  );
+  if (!res.ok) throw new Error(`${res.status} from DONKI ${type}`);
+  const text = await res.text(); // DONKI answers with an empty body when there is nothing to report
+  return text.trim() ? JSON.parse(text) : [];
+}
+
+async function loadSpaceWeather(): Promise<SpaceEvent[]> {
+  // Fetched separately: NASA's flare endpoint has had outages while the others kept working.
+  const [cme, gst, hss, flr] = await Promise.allSettled(["CME", "GST", "HSS", "FLR"].map(getDonki));
+  for (const r of [cme, gst, hss, flr]) if (r.status === "rejected") console.error("[donki]", String(r.reason));
+  if ([cme, gst, hss, flr].every((r) => r.status === "rejected")) throw new Error("all DONKI feeds failed");
+  const rows = (r: PromiseSettledResult<Donki[]>) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []);
+  const link = (d: Donki) => (typeof d.link === "string" ? d.link : undefined);
+
+  const out: (SpaceEvent | null | "")[] = [
+    ...rows(cme).map((d) => {
+      const time = validTime(d.startTime);
+      const best = (Array.isArray(d.cmeAnalyses) ? (d.cmeAnalyses as Donki[]) : []).find((a) => a.isMostAccurate);
+      const speed = typeof best?.speed === "number" ? Math.round(best.speed) : undefined;
+      return time && { id: String(d.activityID), kind: "cme" as const, time, value: speed, label: speed ? `Coronal mass ejection at ${speed} km/s` : "Coronal mass ejection", note: typeof d.note === "string" ? d.note : undefined, link: link(d) };
+    }),
+    ...rows(gst).map((d) => {
+      const time = validTime(d.startTime);
+      const kp = Math.max(0, ...(Array.isArray(d.allKpIndex) ? (d.allKpIndex as Donki[]) : []).map((k) => Number(k.kpIndex) || 0));
+      return time && { id: String(d.gstID), kind: "storm" as const, time, value: kp, label: `Geomagnetic storm, Kp ${kp}`, link: link(d) };
+    }),
+    ...rows(hss).map((d) => {
+      const time = validTime(d.eventTime);
+      return time && { id: String(d.hssID), kind: "stream" as const, time, label: "High-speed solar wind stream", link: link(d) };
+    }),
+    ...rows(flr).map((d) => {
+      const time = validTime(d.peakTime ?? d.beginTime);
+      return time && typeof d.classType === "string"
+        ? { id: String(d.flrID), kind: "flare" as const, time, label: `${d.classType} solar flare`, note: typeof d.sourceLocation === "string" ? `Source region ${d.sourceLocation}` : undefined, link: link(d) }
+        : null;
+    }),
+  ];
+  return out.filter((e): e is SpaceEvent => !!e).sort((a, b) => b.time.localeCompare(a.time));
+}
+
+export const getSpaceWeather = () => cached<SpaceEvent>("donki", 30 * 60_000, loadSpaceWeather, spaceSnapshot as SpaceEvent[]);
+
+async function loadEpic(): Promise<EpicImage[]> {
+  const list = await getJson(`https://api.nasa.gov/EPIC/api/natural?api_key=${nasaKey()}`);
+  const last = Array.isArray(list) ? list[list.length - 1] : undefined;
+  const time = validTime(`${last?.date}`.replace(" ", "T") + "Z");
+  if (!last || !time || !/^[\w-]+$/.test(last.image)) return [];
+  const [y, m, d] = time.slice(0, 10).split("-");
+  // The image comes from the archive host that needs no key, so the key never reaches the browser.
+  return [{
+    date: time,
+    url: `https://epic.gsfc.nasa.gov/archive/natural/${y}/${m}/${d}/jpg/${last.image}.jpg`,
+    caption: String(last.caption ?? ""),
+    lat: Number(last.centroid_coordinates?.lat) || 0,
+    lon: Number(last.centroid_coordinates?.lon) || 0,
+  }];
+}
+
+export const getEpic = () => cached<EpicImage>("epic", 60 * 60_000, loadEpic, epicSnapshot as EpicImage[]);

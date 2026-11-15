@@ -1,7 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { isStepCount, streamText, tool } from "ai";
 import { z } from "zod";
-import { distanceKm, getEvents, getNeos } from "@/lib/nasa";
+import { distanceKm, getEvents, getNeos, getSpaceWeather } from "@/lib/nasa";
 
 const Body = z.object({
   messages: z
@@ -73,6 +73,18 @@ export async function POST(req: Request) {
             approaches: feed.items
               .filter((n) => !maxLunarDistances || n.distLd <= maxLunarDistances)
               .map((n) => ({ ...n, distLd: +n.distLd.toFixed(2), distKm: Math.round(n.distKm), diameterM: Math.round(n.diameterM) })),
+          };
+        },
+      }),
+      get_space_weather: tool({
+        description:
+          "Space weather from NASA DONKI for the last 30 days: solar flares, coronal mass ejections (speed in km/s), high-speed solar wind streams and geomagnetic storms (Kp index).",
+        inputSchema: z.object({ kind: z.enum(["flare", "cme", "stream", "storm"]).optional() }),
+        execute: async ({ kind }) => {
+          const feed = await getSpaceWeather();
+          return {
+            dataIsStale: feed.stale,
+            events: feed.items.filter((s) => !kind || s.kind === kind).slice(0, 60).map(({ kind, time, label, value }) => ({ kind, time, label, value })),
           };
         },
       }),

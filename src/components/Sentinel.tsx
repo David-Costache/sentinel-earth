@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { colorOf, LAYERS } from "@/lib/layers";
-import type { EonetEvent, Feed, Neo } from "@/lib/types";
+import type { EonetEvent, Feed, Neo, SpaceEvent } from "@/lib/types";
 import About from "./About";
 import Analyst from "./Analyst";
 import Dashboard from "./Dashboard";
 import GlobeView from "./GlobeView";
 import NeoPanel from "./NeoPanel";
+import SpacePanel from "./SpacePanel";
 
 // The last 30 full UTC days. Today is left out because its imagery is still arriving.
 const DATES = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (30 - i) * 86_400_000).toISOString().slice(0, 10));
@@ -72,6 +73,7 @@ export default function Sentinel() {
 
   const events = useFeed<EonetEvent>("/api/events");
   const neos = useFeed<Neo>("/api/neos");
+  const weather = useFeed<SpaceEvent>("/api/space-weather");
   const layer = LAYERS.find((l) => l.id === layerId)!;
 
   const all = useMemo(() => events.feed?.items ?? [], [events.feed]);
@@ -212,7 +214,7 @@ export default function Sentinel() {
       </div>
 
       {view === "dashboard" && (
-        <Dashboard header={brand} events={events.feed} neos={neos.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
+        <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
       )}
 
       {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
@@ -266,6 +268,7 @@ export default function Sentinel() {
         <TabsList className="w-full">
           {!desktop && <TabsTrigger value="events">Events</TabsTrigger>}
           <TabsTrigger value="incoming">Asteroids</TabsTrigger>
+          <TabsTrigger value="sun">Sun</TabsTrigger>
           <TabsTrigger value="analyst">Analyst</TabsTrigger>
           <TabsTrigger value="about">About</TabsTrigger>
         </TabsList>
@@ -275,6 +278,12 @@ export default function Sentinel() {
           {neos.feed && (neos.feed.items.length
             ? <NeoPanel neos={neos.feed.items} selected={neoDes} onSelect={selectNeo} space={space} onSpace={setSpace} />
             : <p className="text-sm text-muted-foreground">No asteroid passes within 20 lunar distances in the next 30 days.</p>)}
+        </TabsContent>
+        <TabsContent value="sun" className="flex min-h-0 flex-col gap-3">
+          <FeedState what="space weather" loading={!weather.feed && !weather.error} error={weather.error} stale={weather.feed} retry={weather.retry} />
+          {weather.feed && (weather.feed.items.length
+            ? <SpacePanel items={weather.feed.items} />
+            : <p className="text-sm text-muted-foreground">NASA lists no space weather events in the last 30 days.</p>)}
         </TabsContent>
         <TabsContent value="analyst" keepMounted className="flex min-h-0 flex-col data-[hidden]:hidden">
           <Analyst seed={seed} label={citeLabel} onCite={cite} />
