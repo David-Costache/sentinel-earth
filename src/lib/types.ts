@@ -3,7 +3,8 @@ export type EonetEvent = {
   title: string;
   category: string;
   categoryTitle: string;
-  date: string;
+  date: string; // latest report
+  started: string; // first report
   lat: number;
   lng: number;
   magnitude?: string;

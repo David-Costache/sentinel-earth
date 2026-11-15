@@ -64,14 +64,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* A sparse star field, so the space around the globe is not flat. */
-    background-image:
-      radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%),
-      radial-gradient(1px 1px at 70% 65%, #cfdcff 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 45% 85%, #fff 50%, transparent 51%),
-      radial-gradient(1px 1px at 88% 12%, #ffe9c2 50%, transparent 51%),
-      radial-gradient(ellipse at 50% 40%, #14224a 0%, #0a1128 70%);
-    background-size: 310px 290px, 430px 370px, 530px 610px, 370px 450px, 100% 100%;
+    background-image: radial-gradient(ellipse at 50% 40%, #14224a 0%, #0a1128 70%);
   }
   :focus-visible {
     outline: 2px solid var(--ring);

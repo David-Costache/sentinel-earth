@@ -62,6 +62,8 @@ export default function Sentinel() {
   const [hidden, setHidden] = useState<string[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [night, setNight] = useState(true);
+  const [density, setDensity] = useState(false);
   const [copied, setCopied] = useState(false);
   const [seed, setSeed] = useState({ q: "", n: 0 });
   const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(desktopQuery).matches);
@@ -189,6 +191,8 @@ export default function Sentinel() {
           neos={neos.feed?.items ?? []}
           selectedNeo={neoDes}
           space={space}
+          night={night}
+          density={density}
           onSelect={selectEvent}
           onSelectNeo={selectNeo}
         />
@@ -203,7 +207,7 @@ export default function Sentinel() {
         <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent p-3 pb-8">{brand}</div>
       )}
 
-      <section aria-label="Imagery" className="hud absolute inset-x-2 top-[calc(46svh-7rem)] rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto">
+      <section aria-label="Imagery" className="hud absolute inset-x-2 top-[calc(46svh-9.25rem)] rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto">
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="layer" className="sr-only">Imagery layer</label>
           <select id="layer" value={layerId} onChange={(e) => setLayerId(e.target.value)} className="min-w-0 flex-1 rounded-md border border-input bg-card px-2 py-1.5 text-sm lg:flex-none">
@@ -224,6 +228,8 @@ export default function Sentinel() {
             aria-valuetext={dayFmt.format(new Date(date))}
             className="order-last min-w-0 basis-full disabled:opacity-40 lg:order-none lg:flex-1 lg:basis-0"
           />
+          <Button size="sm" variant="outline" aria-pressed={night} onClick={() => setNight(!night)} className="aria-pressed:border-primary aria-pressed:text-primary">Night side</Button>
+          <Button size="sm" variant="outline" aria-pressed={density} onClick={() => setDensity(!density)} className="aria-pressed:border-primary aria-pressed:text-primary">Density</Button>
           <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}>
             {copied ? "Link copied" : "Copy link"}
           </Button>

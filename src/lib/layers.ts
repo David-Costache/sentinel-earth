@@ -12,9 +12,16 @@ export const LAYERS: Layer[] = [
 export const tileUrl = (l: Layer, date: string) => (x: number, y: number, z: number) =>
   `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${l.gibs}/default/${l.fixedDate ?? date}/${l.matrix}/${z}/${y}/${x}.${l.ext}`;
 
+// Fixed order, never cycled. Checked with the dataviz palette validator against the panel surface
+// (#101b3a): passes lightness, chroma, colour-blind separation and 3:1 contrast. Other types share one grey.
 export const CATEGORY_COLORS: Record<string, string> = {
-  wildfires: "#FF5A4D", severeStorms: "#5CD6FF", volcanoes: "#E86BFF", floods: "#4F8DFF",
-  seaLakeIce: "#DDE8FF", drought: "#D9A066", dustHaze: "#C9B458", earthquakes: "#9CE37D",
-  landslides: "#B88A5A", snow: "#FFFFFF", tempExtremes: "#FF9D5C", waterColor: "#3FD0B0",
+  wildfires: "#d95926",
+  seaLakeIce: "#199e70",
+  severeStorms: "#3987e5",
+  volcanoes: "#c98500",
+  floods: "#d55181",
+  earthquakes: "#0ca30c",
 };
-export const colorOf = (category: string) => CATEGORY_COLORS[category] ?? "#B0B8D0";
+export const OTHER_COLOR = "#9aa6c8";
+export const CATEGORY_ORDER = Object.keys(CATEGORY_COLORS);
+export const colorOf = (category: string) => CATEGORY_COLORS[category] ?? OTHER_COLOR;

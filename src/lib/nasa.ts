@@ -52,6 +52,7 @@ export function normalizeEvents(raw: { events: RawEvent[] }): EonetEvent[] {
         category: e.categories[0]?.id ?? "other",
         categoryTitle: e.categories[0]?.title ?? "Other",
         date: last.date,
+        started: e.geometry[0].date,
         lat,
         lng,
         magnitude: last.magnitudeValue != null ? `${last.magnitudeValue} ${last.magnitudeUnit ?? ""}`.trim() : undefined,
