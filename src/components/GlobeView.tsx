@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import * as THREE from "three";
+import { subsolarPoint } from "@/lib/geo";
 import { colorOf, tileUrl, type Layer } from "@/lib/layers";
 import type { EonetEvent, Neo } from "@/lib/types";
 
@@ -25,18 +26,6 @@ const moonOrbit = {
   track: Array.from({ length: 73 }, (_, i) => [0, i * 5 - 180, ldToAltitude(1)]),
   color: "rgba(232,236,247,0.45)",
 };
-
-// Where the sun is overhead right now. Accurate to about a degree, which is plenty for a terminator line.
-export function subsolarPoint(now: Date) {
-  const n = (now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 0)) / DAY;
-  const b = (2 * Math.PI * (n - 81)) / 364;
-  const equationOfTime = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b); // minutes
-  const hours = now.getUTCHours() + now.getUTCMinutes() / 60;
-  return {
-    lat: -23.44 * Math.cos((2 * Math.PI * (n + 10)) / 365),
-    lng: ((((12 - hours - equationOfTime / 60) * 15 + 540) % 360) + 360) % 360 - 180,
-  };
-}
 
 // A shell just above the surface: clear by day, Black Marble city lights by night.
 function nightShell() {

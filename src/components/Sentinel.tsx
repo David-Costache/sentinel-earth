@@ -7,6 +7,7 @@ import { colorOf, LAYERS } from "@/lib/layers";
 import type { EonetEvent, Feed, Neo } from "@/lib/types";
 import About from "./About";
 import Analyst from "./Analyst";
+import Dashboard from "./Dashboard";
 import GlobeView from "./GlobeView";
 import NeoPanel from "./NeoPanel";
 
@@ -58,6 +59,7 @@ export default function Sentinel() {
   const [eventId, setEventId] = useState(start.get("event") ?? "");
   const [neoDes, setNeoDes] = useState("");
   const [space, setSpace] = useState(start.get("view") === "space");
+  const [view, setView] = useState<"globe" | "dashboard">(start.get("view") === "dashboard" ? "dashboard" : "globe");
   const [tab, setTab] = useState(start.get("view") === "space" ? "incoming" : "events");
   const [hidden, setHidden] = useState<string[]>([]);
   const [showAll, setShowAll] = useState(false);
@@ -85,9 +87,10 @@ export default function Sentinel() {
   useEffect(() => {
     const p = new URLSearchParams({ layer: layerId, date });
     if (eventId) p.set("event", eventId);
-    if (space) p.set("view", "space");
+    if (view === "dashboard") p.set("view", "dashboard");
+    else if (space) p.set("view", "space");
     window.history.replaceState(null, "", `?${p}`);
-  }, [layerId, date, eventId, space]);
+  }, [layerId, date, eventId, space, view]);
 
   useEffect(() => {
     if (!playing) return;
@@ -95,7 +98,8 @@ export default function Sentinel() {
     return () => clearInterval(t);
   }, [playing]);
 
-  const selectEvent = useCallback((id: string) => { setEventId(id); setSpace(false); }, []);
+  const selectEvent = useCallback((id: string) => { setEventId(id); setSpace(false); setView("globe"); }, []);
+  const showNeo = useCallback((des: string) => { setNeoDes(des); setSpace(true); setTab("incoming"); setView("globe"); }, []);
   const selectNeo = useCallback((des: string) => setNeoDes(des), []);
   const cite = useCallback((ref: string) => {
     if (ref.startsWith("NEO:")) { setNeoDes(ref.slice(4)); setSpace(true); }
@@ -170,11 +174,20 @@ export default function Sentinel() {
   );
 
   const brand = (
-    <header>
+    <header className="flex items-start justify-between gap-3">
+      <div>
       <h1 className="font-heading text-xl font-bold leading-tight">Sentinel Earth</h1>
       <p className="text-sm text-muted-foreground">
         {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
       </p>
+      </div>
+      <div role="group" aria-label="View" className="pointer-events-auto inline-flex shrink-0 rounded-lg border border-border bg-card/70 p-0.5">
+        {(["globe", "dashboard"] as const).map((v) => (
+          <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className="min-h-9 rounded-md px-3 text-sm capitalize transition-colors hover:bg-white/10 active:translate-y-px aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground">
+            {v}
+          </button>
+        ))}
+      </div>
     </header>
   );
 
@@ -198,6 +211,12 @@ export default function Sentinel() {
         />
       </div>
 
+      {view === "dashboard" && (
+        <Dashboard header={brand} events={events.feed} neos={neos.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
+      )}
+
+      {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
+      <div className={view === "dashboard" ? "hidden" : "contents"}>
       {desktop ? (
         <aside className="hud absolute bottom-4 left-4 top-4 flex w-[340px] flex-col gap-4 rounded-xl p-4">
           {brand}
@@ -262,6 +281,7 @@ export default function Sentinel() {
         </TabsContent>
         <TabsContent value="about" className="flex min-h-0 flex-col"><About /></TabsContent>
       </Tabs>
+      </div>
     </main>
   );
 }

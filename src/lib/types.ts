@@ -24,3 +24,15 @@ export type Neo = {
 };
 
 export type Feed<T> = { items: T[]; stale: boolean; fetchedAt: string };
+
+export type SpaceEvent = {
+  id: string;
+  kind: "flare" | "cme" | "storm" | "stream";
+  time: string;
+  label: string; // e.g. "Kp 6 storm", "CME at 303 km/s"
+  value?: number; // Kp index, CME speed in km/s
+  note?: string;
+  link?: string;
+};
+
+export type EpicImage = { date: string; url: string; caption: string; lat: number; lon: number };
