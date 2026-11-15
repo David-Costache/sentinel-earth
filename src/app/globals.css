@@ -1,26 +1,103 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-heading: var(--font-archivo), system-ui, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* One theme: the app is a night-side console. */
+:root {
+  --background: #0a1128;
+  --foreground: #e8ecf7;
+  --card: #101b3a;
+  --card-foreground: #e8ecf7;
+  --popover: #101b3a;
+  --popover-foreground: #e8ecf7;
+  --primary: #ffb238;
+  --primary-foreground: #0a1128;
+  --secondary: #1a2850;
+  --secondary-foreground: #e8ecf7;
+  --muted: #1a2850;
+  --muted-foreground: #9aa6c8;
+  --accent: #1a2850;
+  --accent-foreground: #e8ecf7;
+  --destructive: #ff5a4d;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 18%);
+  --ring: #ffb238;
+  --radius: 0.625rem;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* A sparse star field, so the space around the globe is not flat. */
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 70% 65%, #cfdcff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 45% 85%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 12%, #ffe9c2 50%, transparent 51%),
+      radial-gradient(ellipse at 50% 40%, #14224a 0%, #0a1128 70%);
+    background-size: 310px 290px, 430px 370px, 530px 610px, 370px 450px, 100% 100%;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  h1, h2, h3 {
+    font-stretch: 118%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.hud {
+  background: rgb(16 27 58 / 78%);
+  backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid var(--border);
+}
+
+.globe-tip {
+  background: #101b3a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: 13px/1.4 var(--font-archivo), system-ui, sans-serif;
+  color: #e8ecf7;
+  max-width: 240px;
+}
+
+input[type="range"] {
+  accent-color: var(--primary);
 }
