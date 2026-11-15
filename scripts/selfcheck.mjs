@@ -16,7 +16,7 @@ assert.equal(regionOf(48.8, 2.3), "Europe");
 assert.equal(regionOf(-1.3, 36.8), "Africa");
 assert.equal(regionOf(35.7, 139.7), "Asia");
 assert.equal(regionOf(-33.9, 151.2), "Oceania");
-assert.equal(regionOf(-69.8, 21), "Antarctica and Southern Ocean");
+assert.equal(regionOf(-69.8, 21), "Antarctic");
 assert.equal(regionOf(0, -140), "Open ocean");
 
 const ev = { id: "E1", title: 'Fire "Big", north', category: "wildfires", categoryTitle: "Wildfires", date: "2026-11-12T00:00:00Z", started: "2026-11-10T00:00:00Z", lat: 1, lng: 2 };

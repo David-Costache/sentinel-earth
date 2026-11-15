@@ -26,7 +26,7 @@ const BOXES: [string, number, number, number, number][] = [
 ];
 
 export function regionOf(lat: number, lng: number) {
-  if (lat < -60) return "Antarctica and Southern Ocean";
+  if (lat < -60) return "Antarctic";
   return BOXES.find(([, s, n, w, e]) => lat >= s && lat <= n && lng >= w && lng <= e)?.[0] ?? "Open ocean";
 }
 

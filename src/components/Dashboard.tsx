@@ -241,8 +241,8 @@ export default function Dashboard({ header, events, neos, weather, epic, selecte
             table={{ head: ["When (UTC)", "Event"], rows: sun.map((s) => [stamp.format(new Date(s.time)), s.label]) }}
           >
             {sun.length ? (
-              <svg viewBox="0 0 340 150" className="w-full" role="img" aria-label={`Timeline of ${sun.length} space weather events in the last 30 days, in four rows by kind.`}>
-                {KINDS.map(([k, name], row) => {
+              <svg viewBox="0 0 340 150" className="w-full" role="img" aria-label={`Timeline of ${sun.length} space weather events in the last 30 days, in rows by kind.`}>
+                {KINDS.filter(([k]) => sun.some((s) => s.kind === k)).map(([k, name], row) => {
                   const y = 22 + row * 30;
                   return (
                     <g key={k}>

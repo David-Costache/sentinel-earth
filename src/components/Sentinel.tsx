@@ -154,7 +154,7 @@ export default function Sentinel() {
       {all.length > 0 && (
         <div className="flex gap-2">
           <label htmlFor="find" className="sr-only">Search events by name</label>
-          <input id="find" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events by name" className="min-w-0 flex-1 rounded-md border border-input bg-black/20 px-3 py-1.5 text-sm placeholder:text-muted-foreground" />
+          <input id="find" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" className="min-w-0 flex-1 rounded-md border border-input bg-black/20 px-3 py-1.5 text-sm placeholder:text-muted-foreground" />
           <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.csv", "text/csv", eventsToCsv(visible))}>CSV</Button>
           <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.geojson", "application/geo+json", JSON.stringify(eventsToGeoJson(visible)))}>GeoJSON</Button>
         </div>
@@ -200,8 +200,8 @@ export default function Sentinel() {
   );
 
   const brand = (
-    <header className="flex items-start justify-between gap-3">
-      <div>
+    <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      <div className="min-w-[12rem] flex-1">
       <h1 className="font-heading text-xl font-bold leading-tight">Sentinel Earth</h1>
       <p className="text-sm text-muted-foreground">
         {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
@@ -252,10 +252,10 @@ export default function Sentinel() {
         <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent p-3 pb-8">{brand}</div>
       )}
 
-      <section aria-label="Imagery" className="hud absolute inset-x-2 top-[calc(46svh-9.25rem)] rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto">
+      <section aria-label="Imagery" className="hud absolute inset-x-2 top-[calc(46svh-10.25rem)] rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto">
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="layer" className="sr-only">Imagery layer</label>
-          <select id="layer" value={layerId} onChange={(e) => setLayerId(e.target.value)} className="min-w-0 flex-1 rounded-md border border-input bg-card px-2 py-1.5 text-sm lg:flex-none">
+          <select id="layer" value={layerId} onChange={(e) => setLayerId(e.target.value)} className="min-w-0 basis-full rounded-md border border-input bg-card px-2 py-1.5 text-sm lg:basis-auto">
             {LAYERS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
           <Button size="sm" variant="outline" disabled={!!layer.fixedDate} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
