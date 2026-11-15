@@ -23,6 +23,8 @@ const ev = { id: "E1", title: 'Fire "Big", north', category: "wildfires", catego
 const csv = eventsToCsv([ev]).split("\r\n");
 assert.equal(csv.length, 2);
 assert.equal(csv[1], 'E1,"Fire ""Big"", north",Wildfires,2026-11-10T00:00:00Z,2026-11-12T00:00:00Z,1,2,,');
+assert.ok(eventsToCsv([{ ...ev, title: "=HYPERLINK(1)" }]).includes(",'=HYPERLINK(1),"), "formula-like text is neutralised");
+assert.ok(eventsToCsv([{ ...ev, lat: -59.8 }]).includes(",-59.8,"), "negative numbers stay numbers");
 const geo = eventsToGeoJson([ev, { ...ev, id: "E2", track: [[1, 2], [3, 4]] }]);
 assert.deepEqual(geo.features[0].geometry, { type: "Point", coordinates: [2, 1] });
 assert.deepEqual(geo.features[1].geometry, { type: "LineString", coordinates: [[2, 1], [4, 3]] });

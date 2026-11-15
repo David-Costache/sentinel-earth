@@ -31,7 +31,9 @@ export function regionOf(lat: number, lng: number) {
 }
 
 const cell = (v: unknown) => {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // Feed text that starts like a formula would run in a spreadsheet; a leading quote makes it plain text.
+  if (typeof v === "string" && /^[=+@-]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

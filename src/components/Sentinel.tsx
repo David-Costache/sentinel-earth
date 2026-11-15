@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { eventsToCsv, eventsToGeoJson } from "@/lib/geo";
 import { colorOf, LAYERS } from "@/lib/layers";
 import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "@/lib/types";
 import About from "./About";
@@ -16,6 +17,14 @@ import SpacePanel from "./SpacePanel";
 const DATES = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (30 - i) * 86_400_000).toISOString().slice(0, 10));
 const dayFmt = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const LIST_CAP = 120;
+
+function download(name: string, type: string, text: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
 function useFeed<T>(url: string) {
   const [state, setState] = useState<{ feed?: Feed<T>; error?: string }>({});
@@ -63,6 +72,7 @@ export default function Sentinel() {
   const [view, setView] = useState<"globe" | "dashboard">(start.get("view") === "dashboard" ? "dashboard" : "globe");
   const [tab, setTab] = useState(start.get("view") === "space" ? "incoming" : "events");
   const [hidden, setHidden] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [night, setNight] = useState(true);
@@ -83,7 +93,10 @@ export default function Sentinel() {
     for (const e of all) m.set(e.category, { title: e.categoryTitle, n: (m.get(e.category)?.n ?? 0) + 1 });
     return [...m].sort((a, b) => b[1].n - a[1].n);
   }, [all]);
-  const visible = useMemo(() => all.filter((e) => !hidden.includes(e.category)), [all, hidden]);
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return all.filter((e) => !hidden.includes(e.category) && (!q || e.title.toLowerCase().includes(q)));
+  }, [all, hidden, query]);
   const selected = all.find((e) => e.id === eventId);
 
   // Shareable link: the address always describes the current view.
@@ -138,6 +151,16 @@ export default function Sentinel() {
           })}
         </div>
       )}
+      {all.length > 0 && (
+        <div className="flex gap-2">
+          <label htmlFor="find" className="sr-only">Search events by name</label>
+          <input id="find" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events by name" className="min-w-0 flex-1 rounded-md border border-input bg-black/20 px-3 py-1.5 text-sm placeholder:text-muted-foreground" />
+          <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.csv", "text/csv", eventsToCsv(visible))}>CSV</Button>
+          <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.geojson", "application/geo+json", JSON.stringify(eventsToGeoJson(visible)))}>GeoJSON</Button>
+        </div>
+      )}
+      {all.length > 0 && visible.length === 0 && <p className="text-sm text-muted-foreground">No events match. Clear the search or turn a type back on.</p>}
+      {visible.length > 0 && visible.length < all.length && <p className="text-xs text-muted-foreground" aria-live="polite">Showing {visible.length} of {all.length}. Exports include only these.</p>}
       <ul className="min-h-0 flex-1 overflow-y-auto pr-1">
         {(showAll ? visible : visible.slice(0, LIST_CAP)).map((e) => {
           const open = e.id === eventId;
