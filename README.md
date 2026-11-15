@@ -16,7 +16,7 @@ Sentinel Earth joins six of those services in one place:
 
 - **Natural events.** Every open event from NASA EONET for the last 30 days, on the globe and in a list you can search and filter. Moving events such as storms and icebergs show their track. Newer reports draw larger, and events from the last 48 hours pulse.
 - **Satellite imagery over time.** Five NASA GIBS layers (true color, fire and burn scars, sea surface temperature, city lights, Blue Marble) with a 30-day date slider and playback.
-- **A globe that shows the real moment.** The day/night line sits where the sun is right now, and the night side shows NASA's Black Marble city lights. A density layer shows where events cluster.
+- **A globe that shows the real moment.** The day side is lit from where the sun is right now, the night side shows NASA's Black Marble city lights, and open ocean catches the sun's glint. Gaps between satellite passes are filled from the day before, with Blue Marble underneath. Events glow as beacons, storm and iceberg tracks flow in their direction of travel, and a density layer shows where events cluster.
 - **Dashboard.** Key numbers, event reports per day, breakdowns by type and region, the asteroid timeline, space weather, today's picture of Earth and the freshness of every source. Every chart has a table view, and clicking a mark opens that event or asteroid on the globe.
 - **Space weather.** Coronal mass ejections, geomagnetic storms, high-speed solar wind streams and solar flares from NASA DONKI for the last 30 days.
 - **Earth today.** The latest full-disk photograph from the DSCOVR EPIC camera.
@@ -108,7 +108,7 @@ npm run dev                  # http://localhost:3000
 ```bash
 npm run selfcheck            # logic: sun position, regions, CSV and GeoJSON export
 npm run build
-npx next start -p 3001
+npx next start -p 3001       # on Windows, scripts/restart.ps1 rebuilds and restarts it
 npm run verify               # in a second terminal
 ```
 

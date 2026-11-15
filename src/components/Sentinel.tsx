@@ -8,6 +8,7 @@ import { colorOf, LAYERS } from "@/lib/layers";
 import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "@/lib/types";
 import About from "./About";
 import Analyst from "./Analyst";
+import Clock from "./Clock";
 import Dashboard from "./Dashboard";
 import GlobeView from "./GlobeView";
 import NeoPanel from "./NeoPanel";
@@ -47,8 +48,15 @@ const subscribeDesktop = (cb: () => void) => {
   return () => mq.removeEventListener("change", cb);
 };
 
+const TABS = [["events", "Events"], ["incoming", "Asteroids"], ["sun", "Sun"], ["analyst", "Analyst"], ["about", "About"]] as const;
+
 function FeedState({ error, loading, stale, retry, what }: { error?: string; loading: boolean; stale?: Feed<unknown>; retry: () => void; what: string }) {
-  if (loading) return <p className="text-sm text-muted-foreground">Loading {what}…</p>;
+  if (loading) return (
+    <div role="status" className="space-y-2.5">
+      <span className="sr-only">Loading {what}</span>
+      {[92, 78, 85, 64, 80, 70].map((w, i) => <div key={i} className="skeleton h-4" style={{ width: `${w}%` }} />)}
+    </div>
+  );
   if (error) return (
     <p role="alert" className="text-sm">
       {error} <button onClick={retry} className="text-primary underline underline-offset-2">Try again</button>
@@ -79,6 +87,15 @@ export default function Sentinel() {
   const [density, setDensity] = useState(false);
   const [copied, setCopied] = useState(false);
   const [seed, setSeed] = useState({ q: "", n: 0 });
+  // First-visit hint. Storage can be blocked (private windows), so the app works without it.
+  const [hint, setHint] = useState(() => {
+    try { return localStorage.getItem("sentinel-hint") !== "seen"; } catch { return true; }
+  });
+  const dismissHint = () => {
+    if (!hint) return;
+    setHint(false);
+    try { localStorage.setItem("sentinel-hint", "seen"); } catch { /* the hint just shows again next visit */ }
+  };
   const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(desktopQuery).matches);
 
   const events = useFeed<EonetEvent>("/api/events");
@@ -142,7 +159,7 @@ export default function Sentinel() {
                 key={id}
                 aria-pressed={on}
                 onClick={() => setHidden(on ? [...hidden, id] : hidden.filter((h) => h !== id))}
-                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs aria-[pressed=false]:opacity-45"
+                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:border-white/30 aria-[pressed=false]:opacity-45"
               >
                 <span className="size-2 rounded-full" style={{ background: colorOf(id) }} />
                 {c.title} <span className="tabular-nums text-muted-foreground">{c.n}</span>
@@ -206,6 +223,7 @@ export default function Sentinel() {
       <p className="text-sm text-muted-foreground">
         {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
       </p>
+      <Clock saved={[events.feed, neos.feed, weather.feed, epic.feed].some((f) => f?.stale)} />
       </div>
       <div role="group" aria-label="View" className="pointer-events-auto inline-flex shrink-0 rounded-lg border border-border bg-card/70 p-0.5">
         {(["globe", "dashboard"] as const).map((v) => (
@@ -221,7 +239,7 @@ export default function Sentinel() {
 
   return (
     <main className="relative h-svh overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-[46svh] lg:h-full">
+      <div className="absolute inset-x-0 top-0 h-[46svh] lg:h-full" onPointerDown={dismissHint}>
         <GlobeView
           layer={layer}
           date={date}
@@ -239,6 +257,12 @@ export default function Sentinel() {
 
       {view === "dashboard" && (
         <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
+      )}
+
+      {hint && view === "globe" && (
+        <p role="status" className="hud pointer-events-none absolute left-1/2 top-[19svh] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-2 text-sm lg:bottom-32 lg:top-auto">
+          Drag to rotate. Click a marker for details.
+        </p>
       )}
 
       {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
@@ -289,12 +313,17 @@ export default function Sentinel() {
         onValueChange={(v) => setTab(String(v))}
         className="hud absolute inset-x-0 bottom-0 top-[46svh] gap-3 rounded-t-xl p-3 lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-4 lg:w-[380px] lg:rounded-xl lg:p-4"
       >
-        <TabsList className="w-full">
-          {!desktop && <TabsTrigger value="events">Events</TabsTrigger>}
-          <TabsTrigger value="incoming">Asteroids</TabsTrigger>
-          <TabsTrigger value="sun">Sun</TabsTrigger>
-          <TabsTrigger value="analyst">Analyst</TabsTrigger>
-          <TabsTrigger value="about">About</TabsTrigger>
+        <TabsList variant="line" className="h-10! w-full border-b border-border">
+          {(desktop ? TABS.slice(1) : TABS).map(([value, name]) => (
+            // The underline grows from the left under the active tab.
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="rounded-b-none hover:bg-white/5 after:origin-left after:scale-x-0 after:bg-primary after:opacity-100 after:transition-transform after:duration-300 data-active:after:scale-x-100 group-data-horizontal/tabs:after:bottom-[-1px]"
+            >
+              {name}
+            </TabsTrigger>
+          ))}
         </TabsList>
         {!desktop && <TabsContent value="events" className="flex min-h-0 flex-col">{eventsPanel}</TabsContent>}
         <TabsContent value="incoming" className="flex min-h-0 flex-col gap-3">

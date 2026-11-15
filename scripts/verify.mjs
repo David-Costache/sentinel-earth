@@ -26,6 +26,27 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
   await page.waitForTimeout(9000); // intro fly-in and imagery tiles
   await shot("1-overview");
 
+  // Mission clock ticks in UTC.
+  const clock = page.locator("time").first();
+  const t1 = await clock.innerText();
+  assert.match(t1, /^\d\d:\d\d:\d\d UTC$/, `clock reads "${t1}"`);
+  await page.waitForTimeout(1200);
+  assert.notEqual(await clock.innerText(), t1, "clock ticks");
+
+  // First-visit hint: shown once, gone after touching the globe, still gone after a reload.
+  const hint = page.getByText("Drag to rotate. Click a marker for details.");
+  assert.ok(await hint.isVisible(), "first-visit hint shows");
+  const globe = page.getByRole("img", { name: /3D globe of Earth/ });
+  const box = await globe.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2);
+  await page.mouse.up();
+  await hint.waitFor({ state: "detached" });
+  await page.reload();
+  await rows.first().waitFor({ timeout: 30_000 });
+  assert.equal(await hint.count(), 0, "hint stays dismissed after a reload");
+
   // Select an event and jump to its imagery.
   await rows.first().click();
   await page.getByRole("button", { name: "See that day's imagery" }).click();

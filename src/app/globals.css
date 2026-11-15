@@ -94,3 +94,35 @@
 input[type="range"] {
   accent-color: var(--primary);
 }
+
+.hud {
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+/* Loading placeholder: a soft sweep across a dim bar. Still when motion is reduced. */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 13%) 50%, rgb(255 255 255 / 6%) 100%);
+  background-size: 200% 100%;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+@keyframes sweep {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* Every control answers the pointer: a lift on hover is the surface's job, a press nudges it down. */
+button:not(:disabled), select, a {
+  transition: background-color 150ms, color 150ms, border-color 150ms, transform 80ms, filter 150ms;
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+li > button:hover, [role="group"] > button:hover {
+  background-color: rgb(255 255 255 / 6%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  *, *::after { transition-duration: 0ms !important; }
+}

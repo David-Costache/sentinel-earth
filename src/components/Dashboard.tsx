@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { regionOf } from "@/lib/geo";
 import { CATEGORY_ORDER, colorOf } from "@/lib/layers";
 import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "@/lib/types";
@@ -73,12 +73,54 @@ function Bars({ rows, onPick, tip }: { rows: { name: string; n: number; color: s
   );
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub: string }) {
+// Counts the first number in a value up from zero, once, when it first appears.
+function CountUp({ value }: { value: string }) {
+  const m = value.match(/\d+(\.\d+)?/);
+  const target = m ? Number(m[0]) : 0;
+  const decimals = m?.[1] ? m[1].length - 1 : 0;
+  const calm = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
+  const [shown, setShown] = useState(calm || !m ? target : 0);
+  useEffect(() => {
+    if (calm || !m) return;
+    let frame = 0;
+    const start = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / 900);
+      setShown(target * (1 - (1 - k) ** 3));
+      if (k < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, calm, m === null]); // eslint-disable-line react-hooks/exhaustive-deps -- m is re-derived each render
+  if (!m) return <>{value}</>;
   return (
-    <div className="hud rounded-xl p-4">
+    <>
+      <span aria-hidden>{value.replace(m[0], shown.toFixed(decimals))}</span>
+      <span className="sr-only">{value}</span>
+    </>
+  );
+}
+
+// A single series, so no legend: the tile's label names it.
+function Sparkline({ values, label }: { values: number[]; label: string }) {
+  const max = Math.max(1, ...values);
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${22 - (v / max) * 20}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="mt-2 h-7 w-full" role="img" aria-label={label}>
+      <title>{label}</title>
+      <polyline points={`0,24 ${pts} 100,24`} fill="rgba(255,178,56,0.12)" stroke="none" />
+      <polyline points={pts} fill="none" stroke="#FFB238" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Tile({ label, value, sub, spark }: { label: string; value: string; sub: string; spark?: { values: number[]; label: string } }) {
+  return (
+    <div className="hud rounded-xl p-4 transition-colors hover:border-white/20">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="font-heading text-3xl font-bold leading-tight tabular-nums [font-stretch:118%]">{value}</p>
+      <p className="font-heading text-3xl font-bold leading-tight tabular-nums [font-stretch:118%]">{value === "…" ? <span className="skeleton inline-block h-8 w-16 align-middle" /> : <CountUp value={value} />}</p>
       <p className="text-xs text-muted-foreground">{sub}</p>
+      {spark && spark.values.some((v) => v > 0) && <Sparkline {...spark} />}
     </div>
   );
 }
@@ -113,6 +155,8 @@ export default function Dashboard({ header, events, neos, weather, epic, selecte
     return list.map((d) => ({ d, items: all.filter((e) => e.date.slice(0, 10) === d) }));
   }, [all, now]);
   const peak = Math.max(1, ...days.map((x) => x.items.length));
+  const startedPerDay = days.map((x) => all.filter((e) => e.started.slice(0, 10) === x.d).length);
+  const passesPerDay = Array.from({ length: 30 }, (_, i) => rocks.filter((n) => Math.floor((new Date(n.date).getTime() - now) / DAY) === i).length);
 
   const regions = useMemo(() => {
     const m = new Map<string, EonetEvent[]>();
@@ -143,12 +187,23 @@ export default function Dashboard({ header, events, neos, weather, epic, selecte
         {header}
 
         <section aria-label="Key numbers" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Tile label="Open natural events" value={events ? String(all.length) : "…"} sub="reported in the last 30 days" />
-          <Tile label="New this week" value={events ? String(fresh) : "…"} sub="events first reported in the last 7 days" />
+          <Tile
+            label="Open natural events"
+            value={events ? String(all.length) : "…"}
+            sub="reported in the last 30 days"
+            spark={{ values: days.map((x) => x.items.length), label: "Event reports per day over the last 30 days" }}
+          />
+          <Tile
+            label="New this week"
+            value={events ? String(fresh) : "…"}
+            sub="events first reported in the last 7 days"
+            spark={{ values: startedPerDay, label: "New events per day over the last 30 days" }}
+          />
           <Tile
             label="Closest asteroid pass"
             value={closest ? `${closest.distLd.toFixed(1)} LD` : neos ? "None" : "…"}
             sub={closest ? `${closest.des} on ${day.format(new Date(closest.date))}, ${size(closest)}` : "within 20 lunar distances, next 30 days"}
+            spark={{ values: passesPerDay, label: "Asteroid passes per day over the next 30 days" }}
           />
           {flare && !storm ? (
             <Tile label="Latest solar flare" value={flare.label.split(" ")[0]} sub={`peaked ${day.format(new Date(flare.time))}`} />
