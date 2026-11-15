@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { colorOf, LAYERS } from "@/lib/layers";
-import type { EonetEvent, Feed, Neo, SpaceEvent } from "@/lib/types";
+import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "@/lib/types";
 import About from "./About";
 import Analyst from "./Analyst";
 import Dashboard from "./Dashboard";
@@ -74,6 +74,7 @@ export default function Sentinel() {
   const events = useFeed<EonetEvent>("/api/events");
   const neos = useFeed<Neo>("/api/neos");
   const weather = useFeed<SpaceEvent>("/api/space-weather");
+  const epic = useFeed<EpicImage>("/api/epic");
   const layer = LAYERS.find((l) => l.id === layerId)!;
 
   const all = useMemo(() => events.feed?.items ?? [], [events.feed]);
@@ -214,7 +215,7 @@ export default function Sentinel() {
       </div>
 
       {view === "dashboard" && (
-        <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
+        <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
       )}
 
       {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
