@@ -118,7 +118,7 @@ function Tile({ label, value, sub, spark }: { label: string; value: string; sub:
   return (
     <div className="hud rounded-xl p-4 transition-colors hover:border-white/20">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="font-heading text-3xl font-bold leading-tight tabular-nums [font-stretch:118%]">{value === "…" ? <span className="skeleton inline-block h-8 w-16 align-middle" /> : <CountUp value={value} />}</p>
+      <p className="font-heading text-3xl font-medium leading-tight tracking-[-0.03em] tabular-nums [font-stretch:118%]">{value === "…" ? <span className="skeleton inline-block h-8 w-16 align-middle" /> : <CountUp value={value} />}</p>
       <p className="text-xs text-muted-foreground">{sub}</p>
       {spark && spark.values.some((v) => v > 0) && <Sparkline {...spark} />}
     </div>

@@ -52,7 +52,7 @@ export default function GroundHud({ event, position, total, nearby, onExit, onSt
           <span className="size-2.5 rounded-full" style={{ background: colorOf(event.category) }} />
           {event.categoryTitle}
         </p>
-        <h2 data-testid="ground-title" className="mt-1 font-heading text-xl font-bold leading-tight">{event.title}</h2>
+        <h2 data-testid="ground-title" className="mt-1 font-heading text-xl font-semibold leading-tight tracking-[-0.02em]">{event.title}</h2>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
           <dt className="text-muted-foreground">Location</dt>
           <dd className="tabular-nums">{coord(event.lat, event.lng)}</dd>

@@ -11,6 +11,9 @@ type Props = {
   onOpen: () => void;
 };
 
+// The live numbers are the intro's signature: large, light, tightly tracked.
+const NUMBER = "text-[1.75em] font-light leading-none tracking-[-0.03em] text-foreground";
+
 // Staggered entrance: delays in seconds, see the .intro-rise rule in globals.css.
 const rise = (delay: number) => ({ animationDelay: `${delay}s` });
 
@@ -34,21 +37,21 @@ export default function Intro({ events, neos, failed, onOpen }: Props) {
     <section
       aria-label="Welcome"
       data-intro
-      className="intro-panel hud absolute inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] max-h-[60svh] overflow-y-auto rounded-[28px] p-5 lg:inset-x-auto lg:bottom-[clamp(24px,6vh,72px)] lg:left-[clamp(24px,4vw,64px)] lg:w-[min(520px,42vw)] lg:p-8"
+      className="intro-panel hud absolute inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] max-h-[60svh] overflow-y-auto rounded-[28px] p-5 lg:inset-x-auto lg:bottom-[clamp(24px,6vh,72px)] lg:left-[clamp(24px,4vw,64px)] lg:w-[min(480px,38vw)] lg:p-8"
     >
       <h1 className="intro-rise text-balance font-heading text-[clamp(2.5rem,6vw,5rem)] font-medium leading-[0.98] tracking-[-0.03em]" style={rise(0.2)}>
         Sentinel Earth
       </h1>
-      <p className="intro-rise mt-4 max-w-[28rem] text-[17px] leading-[1.55] text-foreground/80" style={rise(0.32)}>
+      <p className="intro-rise mt-4 max-w-[28rem] text-[17px] leading-[1.55] text-foreground/85" style={rise(0.32)}>
         Live NASA data on wildfires, storms, space weather and passing asteroids, on one globe. Built for disaster analysts and anyone briefing them.
       </p>
 
       {!failed && (
-        <div className="intro-rise mt-5 min-h-[3.75rem] text-[15px] leading-[1.5] text-foreground/60" style={rise(0.44)} data-testid="intro-fact">
+        <div className="intro-rise mt-5 min-h-[3.75rem] text-[15px] leading-[1.5] text-foreground/75" style={rise(0.44)} data-testid="intro-fact">
           {loaded ? (
             <p className="tabular-nums">
-              <strong className="font-semibold text-foreground">{events.items.length}</strong> natural events are open right now, and{" "}
-              <strong className="font-semibold text-foreground">{neos.items.length}</strong> asteroids pass within 20 lunar distances in the next 30 days.
+              <strong className={NUMBER}>{events.items.length}</strong> natural events are open right now, and{" "}
+              <strong className={NUMBER}>{neos.items.length}</strong> asteroids pass within 20 lunar distances in the next 30 days.
               {saved && " Showing saved data."}
             </p>
           ) : (
@@ -69,7 +72,7 @@ export default function Intro({ events, neos, failed, onOpen }: Props) {
         >
           Open the console
         </Button>
-        <p className="text-xs text-foreground/50">Not an official NASA product.</p>
+        <p className="text-xs text-foreground/70">Not an official NASA product.</p>
       </div>
     </section>
   );

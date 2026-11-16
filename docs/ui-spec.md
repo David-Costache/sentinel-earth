@@ -11,10 +11,10 @@ Fidelity: build exactly this. No nav, cards, badges, video, scroll sections or d
 Existing stack (Next.js 16, Tailwind 4, shadcn/ui), CSS only, no new dependency. Archivo (variable, width axis) is already loaded; nothing else.
 
 ## 2. Tokens (existing)
-`--background #0a1128`, `--foreground #e8ecf7`, `--muted-foreground #9aa6c8`, accent `#FFB238`. The accent appears on the primary button only. Text steps on glass: 100 headline, 80 sub, 60 fact label, 50 footnote. No violet.
+`--background #0a1128`, `--foreground #e8ecf7`, `--muted-foreground #9aa6c8`, accent `#FFB238`. The accent appears on the primary button only. Text steps on glass: 100 headline, 85 sub, 75 fact, 70 footnote (each at least 4.5:1 even over bright cloud). No violet.
 
 ## 3. Material (one, reused)
-Glass: `rgb(16 27 58 / 66%)`, `backdrop-filter: blur(18px) saturate(1.3)`, 1px border `rgb(255 255 255 / 14%)`, top inset highlight `inset 0 1px 0 rgb(255 255 255 / 8%)`, shadow `0 8px 32px rgb(0 0 0 / 28%)`. The console's `.hud` panels take the same shadow.
+Glass: the console's `rgb(16 27 58 / 78%)` (66% failed 4.5:1 over bright cloud), `backdrop-filter: blur(18px) saturate(1.3)`, 1px border `rgb(255 255 255 / 14%)`, top inset highlight `inset 0 1px 0 rgb(255 255 255 / 8%)`, shadow `0 8px 32px rgb(0 0 0 / 28%)`. The console's `.hud` panels take the same shadow.
 
 ## 4. Assets
 None. The globe behind it is the live NASA imagery. No NASA logo.
@@ -26,10 +26,10 @@ Intro is `absolute inset-0` above the globe. The console chrome is hidden while 
 | Element | Copy | Style |
 |---|---|---|
 | H1 | Sentinel Earth | clamp(2.5rem, 6vw, 5rem), weight 500, leading 0.98, tracking -0.03em, balanced wrap |
-| Sub | Live NASA data on wildfires, storms, space weather and passing asteroids, on one globe. Built for disaster analysts and anyone briefing them. | 17px/1.55, weight 400, tracking -0.01em, 80%, max-width 28rem |
-| Fact | **34** natural events are open right now, and **27** asteroids pass within 20 lunar distances in the next 30 days. | 15px/1.5, 60%, numerals 100% weight 600 tabular. Two skeleton bars while loading. Hidden if a feed fails. "Saved data" appended if a feed is stale. |
+| Sub | Live NASA data on wildfires, storms, space weather and passing asteroids, on one globe. Built for disaster analysts and anyone briefing them. | 17px/1.55, weight 400, tracking -0.01em, 85%, max-width 28rem |
+| Fact | **34** natural events are open right now, and **27** asteroids pass within 20 lunar distances in the next 30 days. | 15px/1.5, 75%, numerals 100% weight 600 tabular. Two skeleton bars while loading. Hidden if a feed fails. "Saved data" appended if a feed is stale. |
 | Primary | Open the console | pill, solid `#FFB238` on `#0a1128` text, 15px/500, min-height 48px, padding 14px 28px |
-| Footnote | Not an official NASA product. | 12px, 50% |
+| Footnote | Not an official NASA product. | 12px, 70% |
 
 ## 7. Motion
 Easing `cubic-bezier(0.22, 1, 0.36, 1)`. Panel fades in 0.6s. Then H1, sub, fact, button rise (opacity 0 to 1, translateY 20px to 0, blur 8px to 0), 0.8s each, delays 0.2s, 0.32s, 0.44s, 0.56s. Done by 1.4s. Button hover scale 1.03 over 200ms, active 0.97. Nothing loops. Reduced motion: final state at once, no animation. Dismissal is instant.

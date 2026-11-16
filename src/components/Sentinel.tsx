@@ -305,17 +305,17 @@ export default function Sentinel() {
   const header = (stacked: boolean) => (
     <header className={stacked ? "flex flex-col gap-1" : "grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1"}>
       <h1 tabIndex={-1} className="font-heading text-xl font-semibold leading-tight outline-none">Sentinel Earth</h1>
-      <div role="group" aria-label="View" className={`pointer-events-auto rounded-lg border border-border bg-card/70 p-0.5 ${stacked ? "order-last mt-2 grid grid-cols-2" : "inline-flex"}`}>
+      <div role="group" aria-label="View" className={`pointer-events-auto rounded-lg border border-border bg-card/70 p-0.5 ${stacked ? "order-last mt-2 grid grid-cols-2" : "inline-flex lg:row-span-2"}`}>
         {(["globe", "dashboard"] as const).map((v) => (
           <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className="min-h-10 rounded-md px-3 text-sm capitalize transition-colors hover:bg-white/10 aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground max-lg:min-h-11">
             {v}
           </button>
         ))}
       </div>
-      <p className={`text-sm text-muted-foreground ${stacked ? "" : "col-span-2"}`}>
+      <p className={`text-sm text-muted-foreground ${stacked ? "" : "col-span-2 lg:col-span-1"}`}>
         {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
       </p>
-      <div className={stacked ? "" : "col-span-2"}>
+      <div className={stacked ? "" : "col-span-2 lg:col-span-1"}>
         <Clock saved={[events.feed, neos.feed, weather.feed, epic.feed].some((f) => f?.stale)} />
       </div>
     </header>
