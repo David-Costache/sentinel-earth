@@ -4,6 +4,8 @@ Live NASA data on fires, storms, space weather and passing asteroids, on one 3D 
 
 Built for the NASA Space Apps Challenge 2026.
 
+![The first screen: one sentence, one live fact, one button](docs/screenshots/desktop-1440-0-intro.png)
+
 ![Sentinel Earth with an event selected](docs/screenshots/desktop-1440-2-event.png)
 
 ![Ground view of a wildfire before dawn](docs/screenshots/desktop-1440-9-ground.png)
@@ -19,6 +21,7 @@ Sentinel Earth joins six of those services in one place:
 - **Natural events.** Every open event from NASA EONET for the last 30 days, on the globe and in a list you can search and filter. Moving events such as storms and icebergs show their track. Newer reports draw larger, and events from the last 48 hours pulse.
 - **Satellite imagery over time.** Five NASA GIBS layers (true color, fire and burn scars, sea surface temperature, city lights, Blue Marble) with a 30-day date slider and playback.
 - **A globe that shows the real moment.** The day side is lit from where the sun is right now, the night side shows NASA's Black Marble city lights, and open ocean catches the sun's glint. Gaps between satellite passes are filled from the day before, with Blue Marble underneath. Events glow as beacons, storm and iceberg tracks flow in their direction of travel, and a density layer shows where events cluster.
+- **First screen.** A first-time visitor lands on the live globe with one glass panel: what this is and who it is for, a live count of open events and asteroid passes, and one button. It shows once per browser, and never for a shared link, which opens straight on the view it names. Enter or Esc skips it.
 - **Ground view.** Stand at any event, about 2 km above the surface, and look around. The sky is coloured from where the sun is at that place right now, with stars after dark. A compass shows which way you face, other open events within 1000 km sit on the horizon at their true bearing and distance, and a moving event's track is drawn on the ground. Step through every event with [ and ], or share a link that opens straight into it.
 - **Dashboard.** Key numbers, event reports per day, breakdowns by type and region, the asteroid timeline, space weather, today's picture of Earth and the freshness of every source. Every chart has a table view, and clicking a mark opens that event or asteroid on the globe.
 - **Space weather.** Coronal mass ejections, geomagnetic storms, high-speed solar wind streams and solar flares from NASA DONKI for the last 30 days.
@@ -116,7 +119,7 @@ npx next start -p 3001       # on Windows, scripts/restart.ps1 rebuilds and rest
 npm run verify               # in a second terminal
 ```
 
-`npm run verify` drives the app in Microsoft Edge at 1440px and 375px. It selects an event, searches, downloads both exports, opens every tab and the dashboard, and waits for the EPIC photograph. Then it opens the ground view, checks the HUD, turns with the arrow keys and checks that Esc puts the camera back where it was. With motion reduced, it starts from a shared link to the highest-latitude event and steps through every event. It saves screenshots to [docs/screenshots](docs/screenshots) and fails on any console error or failed request. Two exceptions are expected and counted: the analyst's 503 without a key, and a NASA imagery tile that has no data for its day (404). Set `BROWSER_CHANNEL=chrome` to use Chrome. Set `ANTHROPIC_CHECK=1` to also wait for a live analyst answer.
+`npm run verify` drives the app in Microsoft Edge at 1440px and 375px. It starts on the first-screen intro (live counts, focus, Enter and Esc, a reload, a shared link that skips it, and reduced motion), then selects an event, searches, downloads both exports, opens every tab and the dashboard, and waits for the EPIC photograph. Then it opens the ground view, checks the HUD, turns with the arrow keys and checks that Esc puts the camera back where it was. With motion reduced, it starts from a shared link to the highest-latitude event and steps through every event. It saves screenshots to [docs/screenshots](docs/screenshots) and fails on any console error or failed request. Two exceptions are expected and counted: the analyst's 503 without a key, and a NASA imagery tile that fails (no data for its day, or GIBS busy). Set `BROWSER_CHANNEL=chrome` to use Chrome. Set `ANTHROPIC_CHECK=1` to also wait for a live analyst answer.
 
 ### Deploy
 
@@ -128,7 +131,7 @@ Add `NASA_API_KEY` and `ANTHROPIC_API_KEY` in the Vercel project settings first.
 
 ## Two-minute demo script
 
-1. **0:00 Open the app.** The camera falls in from deep space onto today's Terra imagery, daylit side first. Drag the globe to the night side: "That line is where the sun is setting right now, and those are real city lights." "Everything here is live NASA data. Nothing is mocked."
+1. **0:00 Open the app.** The first screen reads the live counts out of NASA's feeds. Click "Open the console": the camera falls in from deep space onto today's Terra imagery, daylit side first. (Use a private window or clear the site data to see it again.) Drag the globe to the night side: "That line is where the sun is setting right now, and those are real city lights." "Everything here is live NASA data. Nothing is mocked."
 2. **0:15 Events.** Turn Wildfires off and on. Type "Iceberg" in the search box. Click a storm: the globe flies there and shows its track. Pulsing markers are reports from the last 48 hours.
 3. **0:35 Imagery over time.** Click "See that day's imagery". Switch the layer to "Fire and burn scars" on a wildfire. Press Play and let a few days run. Turn on Density to show where events cluster.
 4. **0:45 Ground view.** On a selected wildfire, click "Ground view": the camera descends and you stand at the fire. "The sky is the real sky over that fire right now. Those markers on the horizon are the other fires within 1000 km, at their true bearing." Drag to look around, press ] to jump to the next event, then Esc to come back to exactly where you were.
