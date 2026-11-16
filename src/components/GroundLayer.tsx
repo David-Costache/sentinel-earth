@@ -216,7 +216,7 @@ export default function GroundLayer({ globe, ready, event, waypoints, calm, onPi
       setTimeout(() => {
         host.dataset.povAfter = JSON.stringify(g.pointOfView());
         controls.dispatchEvent({ type: "change" });
-      }, dur + 150);
+      }, dur + 1000); // slack for slow frames: the return animation is timed, but only lands on a rendered frame
     };
   }, [ready, globe, calm]);
 

@@ -145,10 +145,10 @@ function beacon(color: string, scale: number) {
 }
 
 // Imagery tiles are created inside the globe library, so each new one is patched as it appears.
-// Where a pixel has no data (the gaps between orbits), it takes the previous day's pass instead,
-// because the gaps fall in different places each day. If that is empty too, the pixel is dropped
-// and the Blue Marble sphere underneath shows through.
-function patchTiles(engine: THREE.Object3D, fill: THREE.IUniform) {
+// Where a pixel has no data (the gaps between orbits), it blends to the previous day's pass, which
+// has its gaps elsewhere, and where that is empty too, to the Blue Marble. The blend is soft because
+// the JPEG tiles ring with dark grey around each gap: a hard cut-off leaves those rings as lines.
+function patchTiles(engine: THREE.Object3D, fill: THREE.IUniform, base: THREE.IUniform) {
   for (const tile of engine.children as THREE.Mesh[]) {
     const m = tile.material as THREE.MeshLambertMaterial & { userData: { fills?: boolean } };
     if (!m?.isMeshLambertMaterial || !m.map || m.userData.fills) continue;
@@ -168,14 +168,23 @@ function patchTiles(engine: THREE.Object3D, fill: THREE.IUniform) {
     }
 
     m.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, { fillGaps: fill, before, hasBefore });
-      shader.fragmentShader = "uniform float fillGaps; uniform float hasBefore; uniform sampler2D before;\n" + shader.fragmentShader.replace(
+      Object.assign(shader.uniforms, { fillGaps: fill, before, hasBefore, baseMap: base });
+      // Tiles are pieces of a sphere centred on the globe, so the vertex position gives the direction
+      // for sampling the equirectangular Blue Marble.
+      shader.vertexShader = "varying vec3 vDir;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvDir = position;");
+      shader.fragmentShader = "uniform float fillGaps; uniform float hasBefore; uniform sampler2D before; uniform sampler2D baseMap; varying vec3 vDir;\n" + shader.fragmentShader.replace(
         "#include <map_fragment>",
         `#include <map_fragment>
-        if (fillGaps > 0.5 && (diffuseColor.a < 0.5 || dot(diffuseColor.rgb, vec3(0.3333)) < 0.02)) {
+        if (fillGaps > 0.5) {
+          vec3 n = normalize(vDir);
+          ${EQUIRECT}
           vec4 older = hasBefore > 0.5 ? texture2D(before, vMapUv) : vec4(0.0);
-          if (older.a < 0.5 || dot(older.rgb, vec3(0.3333)) < 0.02) discard;
-          diffuseColor = vec4(older.rgb, 1.0);
+          // "Has data": real ocean is dark but never black, so test the brightest channel, not the average.
+          // Colours here are linear light: 0.003 to 0.035 is roughly 10 to 50 out of 255 on screen.
+          float oldOk = older.a * smoothstep(0.003, 0.035, max(older.r, max(older.g, older.b)));
+          float ok = diffuseColor.a * smoothstep(0.003, 0.035, max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)));
+          vec3 fallback = mix(texture2D(baseMap, uv).rgb, older.rgb, oldOk);
+          diffuseColor = vec4(mix(fallback, diffuseColor.rgb, ok), 1.0);
         }`,
       );
     };
@@ -210,6 +219,7 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
   const rig = useRef<Rig | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [ready, setReady] = useState(false);
+  const [close, setClose] = useState(false); // zoomed in far enough that the lat/lng grid reads as stray lines
   const [now] = useState(Date.now);
   const calm = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   const groundRef = useRef(ground);
@@ -284,9 +294,13 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
     const black = back?.material;
     const base = baseMaterial(day, shared);
     if (back) back.material = base;
+    const baseMap = { value: day };
     let frame = 0;
     const tick = (t: number) => {
-      if (engine) patchTiles(engine, fill);
+      if (engine) patchTiles(engine, fill, baseMap);
+      // The library hides this sphere at its lowest zoom level, so zooming out flashed an empty ball
+      // while tiles reloaded. Keep the Blue Marble there at every level.
+      if (back) back.visible = true;
       if (!calm) (beam.material as THREE.MeshBasicMaterial).opacity = 0.42 + 0.16 * Math.sin(t / 420);
       frame = requestAnimationFrame(tick);
     };
@@ -386,11 +400,12 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
           width={size.w}
           height={size.h}
           onGlobeReady={() => setReady(true)}
+          onZoom={(pov) => setClose(pov.altitude < 1.2)}
           backgroundColor="rgba(0,0,0,0)"
           globeTileEngineUrl={tiles}
           // A real globe.gl prop that react-globe.gl's types leave out.
           {...({ globeTileEngineMaxLevel: maxLevel } as object)}
-          showGraticules={!ground}
+          showGraticules={!ground && !close}
           atmosphereColor="#4DA3FF"
           atmosphereAltitude={0.26}
           ringsData={rings}
