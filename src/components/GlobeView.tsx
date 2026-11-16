@@ -144,6 +144,25 @@ function beacon(color: string, scale: number) {
   return new THREE.Group().add(sprite(5.2, 0.7, color), sprite(1.9, 1, color), sprite(0.9, 0.9, "#ffffff"));
 }
 
+// How much a tile pixel is real data, from 0 (a gap between passes) to 1, feathered over about ten
+// texels at the edge of a gap so one day's pass fades into the next instead of meeting it at a line.
+// "Has data" tests the brightest channel (real ocean is dark but never black) in linear light:
+// 0.003 to 0.035 is roughly 10 to 50 out of 255 on screen, which also swallows the JPEG's dark rings.
+const FEATHER = `
+float hasData(sampler2D t, vec2 uv) {
+  vec3 c = texture2D(t, uv).rgb;
+  return smoothstep(0.003, 0.035, max(c.r, max(c.g, c.b)));
+}
+float feather(sampler2D t, vec2 uv) {
+  vec2 px = 1.0 / vec2(textureSize(t, 0));
+  float ring = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec2 d = vec2(cos(float(i) * 1.0472), sin(float(i) * 1.0472)) * px;
+    ring += hasData(t, uv + d * 4.0) + hasData(t, uv + d * 10.0);
+  }
+  return hasData(t, uv) * smoothstep(0.6, 1.0, ring / 12.0); // start the hand-over only once the dark fringe is out of reach
+}`;
+
 // Imagery tiles are created inside the globe library, so each new one is patched as it appears.
 // Where a pixel has no data (the gaps between orbits), it blends to the previous day's pass, which
 // has its gaps elsewhere, and where that is empty too, to the Blue Marble. The blend is soft because
@@ -172,21 +191,20 @@ function patchTiles(engine: THREE.Object3D, fill: THREE.IUniform, base: THREE.IU
       // Tiles are pieces of a sphere centred on the globe, so the vertex position gives the direction
       // for sampling the equirectangular Blue Marble.
       shader.vertexShader = "varying vec3 vDir;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvDir = position;");
-      shader.fragmentShader = "uniform float fillGaps; uniform float hasBefore; uniform sampler2D before; uniform sampler2D baseMap; varying vec3 vDir;\n" + shader.fragmentShader.replace(
-        "#include <map_fragment>",
-        `#include <map_fragment>
-        if (fillGaps > 0.5) {
-          vec3 n = normalize(vDir);
-          ${EQUIRECT}
-          vec4 older = hasBefore > 0.5 ? texture2D(before, vMapUv) : vec4(0.0);
-          // "Has data": real ocean is dark but never black, so test the brightest channel, not the average.
-          // Colours here are linear light: 0.003 to 0.035 is roughly 10 to 50 out of 255 on screen.
-          float oldOk = older.a * smoothstep(0.003, 0.035, max(older.r, max(older.g, older.b)));
-          float ok = diffuseColor.a * smoothstep(0.003, 0.035, max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)));
-          vec3 fallback = mix(texture2D(baseMap, uv).rgb, older.rgb, oldOk);
-          diffuseColor = vec4(mix(fallback, diffuseColor.rgb, ok), 1.0);
-        }`,
-      );
+      shader.fragmentShader = "uniform float fillGaps; uniform float hasBefore; uniform sampler2D before; uniform sampler2D baseMap; varying vec3 vDir;\n" + shader.fragmentShader
+        .replace("void main() {", `${FEATHER}\nvoid main() {`)
+        .replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          if (fillGaps > 0.5) {
+            vec3 n = normalize(vDir);
+            ${EQUIRECT}
+            vec4 older = hasBefore > 0.5 ? texture2D(before, vMapUv) : vec4(0.0);
+            float oldOk = hasBefore > 0.5 ? feather(before, vMapUv) : 0.0;
+            vec3 fallback = mix(texture2D(baseMap, uv).rgb, older.rgb, oldOk);
+            diffuseColor = vec4(mix(fallback, diffuseColor.rgb, feather(map, vMapUv)), 1.0);
+          }`,
+        );
     };
     m.customProgramCacheKey = () => "fill-gaps";
     m.needsUpdate = true;
