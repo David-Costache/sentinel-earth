@@ -93,6 +93,9 @@ export default function Sentinel() {
   const [night, setNight] = useState(true);
   const [density, setDensity] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Phone layout: the bottom panel is compact (globe visible) or tall (more list); the imagery tools fold away.
+  const [sheetTall, setSheetTall] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [seed, setSeed] = useState({ q: "", n: 0 });
   // First-visit hint. Storage can be blocked (private windows), so the app works without it.
   const [hint, setHint] = useState(() => {
@@ -219,7 +222,7 @@ export default function Sentinel() {
                 key={id}
                 aria-pressed={on}
                 onClick={() => setHidden(on ? [...hidden, id] : hidden.filter((h) => h !== id))}
-                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:border-white/30 aria-[pressed=false]:opacity-45"
+                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:border-white/30 aria-[pressed=false]:opacity-45 max-lg:min-h-10 max-lg:px-3"
               >
                 <span className="size-2 rounded-full" style={{ background: colorOf(id) }} />
                 {c.title} <span className="tabular-nums text-muted-foreground">{c.n}</span>
@@ -231,9 +234,9 @@ export default function Sentinel() {
       {all.length > 0 && (
         <div className="flex gap-2">
           <label htmlFor="find" className="sr-only">Search events by name</label>
-          <input id="find" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" className="min-w-0 flex-1 rounded-md border border-input bg-black/20 px-3 py-1.5 text-sm placeholder:text-muted-foreground" />
-          <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.csv", "text/csv", eventsToCsv(visible))}>CSV</Button>
-          <Button size="sm" variant="outline" disabled={!visible.length} onClick={() => download("sentinel-earth-events.geojson", "application/geo+json", JSON.stringify(eventsToGeoJson(visible)))}>GeoJSON</Button>
+          <input id="find" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" className="min-w-0 flex-1 rounded-md border border-input bg-black/20 px-3 py-1.5 text-sm placeholder:text-muted-foreground max-lg:min-h-11" />
+          <Button size="sm" variant="outline" className="max-lg:h-11" disabled={!visible.length} onClick={() => download("sentinel-earth-events.csv", "text/csv", eventsToCsv(visible))}>CSV</Button>
+          <Button size="sm" variant="outline" className="max-lg:h-11" disabled={!visible.length} onClick={() => download("sentinel-earth-events.geojson", "application/geo+json", JSON.stringify(eventsToGeoJson(visible)))}>GeoJSON</Button>
         </div>
       )}
       {all.length > 0 && visible.length === 0 && <p className="text-sm text-muted-foreground">No events match. Clear the search or turn a type back on.</p>}
@@ -243,27 +246,36 @@ export default function Sentinel() {
           const open = e.id === eventId;
           return (
             <li key={e.id} className={open ? "rounded-md border-l-2 border-primary bg-white/5" : "border-l-2 border-transparent"}>
-              <button onClick={() => selectEvent(e.id)} aria-expanded={open} className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-white/5">
+              <button onClick={() => selectEvent(e.id)} aria-expanded={open} className={`flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-white/5 max-lg:py-3 ${open ? "font-semibold" : ""}`}>
                 <span className="size-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: colorOf(e.category) }} />
                 <span className="min-w-0 flex-1">{e.title}</span>
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{dayFmt.format(new Date(e.date)).replace(/, \d+$/, "")}</span>
               </button>
               {open && (
-                <div className="space-y-2 px-2 pb-2 pl-6 text-xs text-muted-foreground">
-                  <p className="tabular-nums">
-                    {e.categoryTitle}, {Math.abs(e.lat).toFixed(2)}°{e.lat >= 0 ? "N" : "S"} {Math.abs(e.lng).toFixed(2)}°{e.lng >= 0 ? "E" : "W"}
-                    {e.magnitude && `, ${e.magnitude}`}
-                    {e.track && `, ${e.track.length} tracked positions`}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="xs" onClick={enterGround}>Ground view</Button>
-                    <Button size="xs" variant="outline" onClick={() => { setDate(DATES.includes(e.date.slice(0, 10)) ? e.date.slice(0, 10) : date); setLayerId(e.category === "wildfires" ? "burn" : e.category === "severeStorms" ? "truecolor" : layerId); }}>
+                // Category first, then the facts, then what you can do with them.
+                <div className="mx-2 mb-2 rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium" style={{ background: `${colorOf(e.category)}2e` }}>
+                      <span className="size-2 rounded-full" style={{ background: colorOf(e.category) }} />
+                      {e.categoryTitle}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">Latest report {dayFmt.format(new Date(e.date))}</span>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                    <dt className="text-muted-foreground">Location</dt>
+                    <dd className="tabular-nums">{Math.abs(e.lat).toFixed(2)}°{e.lat >= 0 ? "N" : "S"} {Math.abs(e.lng).toFixed(2)}°{e.lng >= 0 ? "E" : "W"}</dd>
+                    {e.magnitude && (<><dt className="text-muted-foreground">Magnitude</dt><dd>{e.magnitude}</dd></>)}
+                    {e.track && (<><dt className="text-muted-foreground">Track</dt><dd>{e.track.length} reported positions</dd></>)}
+                  </dl>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button size="sm" className="max-lg:h-11" onClick={enterGround}>Ground view</Button>
+                    <Button size="sm" variant="outline" className="max-lg:h-11" onClick={() => { setDate(DATES.includes(e.date.slice(0, 10)) ? e.date.slice(0, 10) : date); setLayerId(e.category === "wildfires" ? "burn" : e.category === "severeStorms" ? "truecolor" : layerId); }}>
                       See that day&apos;s imagery
                     </Button>
-                    <Button size="xs" variant="outline" onClick={() => { setTab("analyst"); setSeed((s) => ({ q: `Tell me about ${e.title} [${e.id}] and anything else happening within 500 km of it.`, n: s.n + 1 })); }}>
+                    <Button size="sm" variant="outline" className="max-lg:h-11" onClick={() => { setTab("analyst"); setSeed((s) => ({ q: `Tell me about ${e.title} [${e.id}] and anything else happening within 500 km of it.`, n: s.n + 1 })); }}>
                       Ask the analyst
                     </Button>
-                    {e.source && <a href={e.source} target="_blank" rel="noreferrer" className="self-center text-primary underline underline-offset-2">Source report</a>}
+                    {e.source && <a href={e.source} target="_blank" rel="noreferrer" className="inline-flex items-center px-1 text-xs text-primary underline underline-offset-2 max-lg:min-h-11">Source report</a>}
                   </div>
                 </div>
               )}
@@ -277,21 +289,23 @@ export default function Sentinel() {
     </div>
   );
 
-  const brand = (
-    <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-      <div className="min-w-[12rem] flex-1">
+  // Stacked in the narrow desktop panel (the view switch gets its own full-width row);
+  // a single row with the switch on the right everywhere else.
+  const header = (stacked: boolean) => (
+    <header className={stacked ? "flex flex-col gap-1" : "grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1"}>
       <h1 className="font-heading text-xl font-bold leading-tight">Sentinel Earth</h1>
-      <p className="text-sm text-muted-foreground">
-        {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
-      </p>
-      <Clock saved={[events.feed, neos.feed, weather.feed, epic.feed].some((f) => f?.stale)} />
-      </div>
-      <div role="group" aria-label="View" className="pointer-events-auto inline-flex shrink-0 rounded-lg border border-border bg-card/70 p-0.5">
+      <div role="group" aria-label="View" className={`pointer-events-auto rounded-lg border border-border bg-card/70 p-0.5 ${stacked ? "order-last mt-2 grid grid-cols-2" : "inline-flex"}`}>
         {(["globe", "dashboard"] as const).map((v) => (
-          <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className="min-h-9 rounded-md px-3 text-sm capitalize transition-colors hover:bg-white/10 active:translate-y-px aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground">
+          <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className="min-h-10 rounded-md px-3 text-sm capitalize transition-colors hover:bg-white/10 aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground max-lg:min-h-11">
             {v}
           </button>
         ))}
+      </div>
+      <p className={`text-sm text-muted-foreground ${stacked ? "" : "col-span-2"}`}>
+        {all.length ? `${all.length} natural events open in the last 30 days, from NASA.` : "Live NASA data on fires, storms and passing asteroids."}
+      </p>
+      <div className={stacked ? "" : "col-span-2"}>
+        <Clock saved={[events.feed, neos.feed, weather.feed, epic.feed].some((f) => f?.stale)} />
       </div>
     </header>
   );
@@ -300,7 +314,7 @@ export default function Sentinel() {
 
   return (
     <main className="relative h-svh overflow-hidden">
-      <div className={view === "ground" ? "absolute inset-0" : "absolute inset-x-0 top-0 h-[46svh] lg:h-full"} onPointerDown={dismissHint}>
+      <div className={view === "ground" ? "absolute inset-0" : `absolute inset-x-0 top-0 lg:h-full ${sheetTall ? "h-[24svh]" : "h-[60svh]"}`} onPointerDown={dismissHint}>
         <GlobeView
           layer={layer}
           date={date}
@@ -346,11 +360,11 @@ export default function Sentinel() {
       )}
 
       {view === "dashboard" && (
-        <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
+        <Dashboard header={header(false)} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
       )}
 
       {hint && view === "globe" && (
-        <p role="status" className="hud pointer-events-none absolute left-1/2 top-[19svh] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-2 text-sm lg:bottom-32 lg:top-auto">
+        <p role="status" className="hud pointer-events-none absolute left-1/2 top-[30svh] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-2 text-sm lg:bottom-32 lg:top-auto">
           Drag to rotate. Click a marker for details.
         </p>
       )}
@@ -359,41 +373,50 @@ export default function Sentinel() {
       <div className={view === "globe" ? "contents" : "hidden"}>
       {desktop ? (
         <aside className="hud absolute bottom-4 left-4 top-4 flex w-[340px] flex-col gap-4 rounded-xl p-4">
-          {brand}
+          {header(true)}
           {eventsPanel}
         </aside>
       ) : (
-        <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent p-3 pb-8">{brand}</div>
+        <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent p-3 pb-8">{header(false)}</div>
       )}
 
-      <section aria-label="Imagery" className="hud absolute inset-x-2 top-[calc(46svh-10.25rem)] rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto">
+      {/* On a phone: one row (layer, play, more) sitting just above the panel; the rest opens upwards. */}
+      <section
+        aria-label="Imagery"
+        className={`hud absolute inset-x-2 rounded-xl px-3 py-2 lg:inset-x-auto lg:bottom-4 lg:left-[372px] lg:right-[412px] lg:top-auto lg:block ${sheetTall ? "hidden" : "bottom-[calc(40svh+0.5rem)]"}`}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="layer" className="sr-only">Imagery layer</label>
-          <select id="layer" value={layerId} onChange={(e) => setLayerId(e.target.value)} className="min-w-0 basis-full rounded-md border border-input bg-card px-2 py-1.5 text-sm lg:basis-auto">
+          <select id="layer" value={layerId} onChange={(e) => setLayerId(e.target.value)} className="min-w-0 flex-1 rounded-md border border-input bg-card px-2 py-1.5 text-sm max-lg:h-11 lg:flex-none">
             {LAYERS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
-          <Button size="sm" variant="outline" disabled={!!layer.fixedDate} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
+          <Button size="sm" variant="outline" className="max-lg:h-11" disabled={!!layer.fixedDate} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
             {playing ? "Pause" : "Play"}
           </Button>
-          <label htmlFor="date" className="sr-only">Imagery date</label>
-          <input
-            id="date"
-            type="range"
-            min={0}
-            max={DATES.length - 1}
-            value={DATES.indexOf(date)}
-            disabled={!!layer.fixedDate}
-            onChange={(e) => { setPlaying(false); setDate(DATES[+e.target.value]); }}
-            aria-valuetext={dayFmt.format(new Date(date))}
-            className="order-last min-w-0 basis-full disabled:opacity-40 lg:order-none lg:flex-1 lg:basis-0"
-          />
-          <Button size="sm" variant="outline" aria-pressed={night} onClick={() => setNight(!night)} className="aria-pressed:border-primary aria-pressed:text-primary">Night side</Button>
-          <Button size="sm" variant="outline" aria-pressed={density} onClick={() => setDensity(!density)} className="aria-pressed:border-primary aria-pressed:text-primary">Density</Button>
-          <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}>
-            {copied ? "Link copied" : "Copy link"}
+          <Button size="sm" variant="ghost" className="h-11 lg:hidden" aria-expanded={toolsOpen} aria-controls="imagery-tools" onClick={() => setToolsOpen(!toolsOpen)}>
+            {toolsOpen ? "Hide tools" : "Date and tools"}
           </Button>
+          <div id="imagery-tools" className={`order-first basis-full flex-wrap items-center gap-2 lg:order-none lg:flex lg:flex-1 lg:basis-0 lg:flex-nowrap ${toolsOpen ? "flex" : "hidden"}`}>
+            <label htmlFor="date" className="sr-only">Imagery date</label>
+            <input
+              id="date"
+              type="range"
+              min={0}
+              max={DATES.length - 1}
+              value={DATES.indexOf(date)}
+              disabled={!!layer.fixedDate}
+              onChange={(e) => { setPlaying(false); setDate(DATES[+e.target.value]); }}
+              aria-valuetext={dayFmt.format(new Date(date))}
+              className="min-w-0 basis-full disabled:opacity-40 max-lg:h-11 lg:flex-1 lg:basis-0"
+            />
+            <Button size="sm" variant="outline" aria-pressed={night} onClick={() => setNight(!night)} className="aria-pressed:border-primary aria-pressed:text-primary max-lg:h-11">Night side</Button>
+            <Button size="sm" variant="outline" aria-pressed={density} onClick={() => setDensity(!density)} className="aria-pressed:border-primary aria-pressed:text-primary max-lg:h-11">Density</Button>
+            <Button size="sm" variant="ghost" className="max-lg:h-11" onClick={() => navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}>
+              {copied ? "Link copied" : "Copy link"}
+            </Button>
+          </div>
         </div>
-        <p className="mt-1 truncate text-xs text-muted-foreground">
+        <p className={`mt-1 truncate text-xs text-muted-foreground lg:block ${toolsOpen ? "block" : "hidden"}`}>
           <span className="tabular-nums text-foreground">{layer.fixedDate ? "Fixed composite" : dayFmt.format(new Date(date))}</span>. {layer.note}
         </p>
       </section>
@@ -401,15 +424,24 @@ export default function Sentinel() {
       <Tabs
         value={shownTab}
         onValueChange={(v) => setTab(String(v))}
-        className="hud absolute inset-x-0 bottom-0 top-[46svh] gap-3 rounded-t-xl p-3 lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-4 lg:w-[380px] lg:rounded-xl lg:p-4"
+        className={`hud absolute inset-x-0 bottom-0 gap-2 rounded-t-xl p-3 pt-0 lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-4 lg:w-[380px] lg:gap-3 lg:rounded-xl lg:p-4 ${sheetTall ? "top-[24svh]" : "top-[60svh]"}`}
       >
-        <TabsList variant="line" className="h-10! w-full border-b border-border">
+        <button
+          type="button"
+          aria-expanded={sheetTall}
+          onClick={() => setSheetTall(!sheetTall)}
+          className="flex h-11 w-full shrink-0 flex-col items-center justify-center gap-1 text-xs text-muted-foreground lg:hidden"
+        >
+          <span aria-hidden className="h-1 w-10 rounded-full bg-white/30" />
+          {sheetTall ? "Show more globe" : "Show more list"}
+        </button>
+        <TabsList variant="line" className="h-10! w-full border-b border-border max-lg:h-11!">
           {(desktop ? TABS.slice(1) : TABS).map(([value, name]) => (
             // The underline grows from the left under the active tab.
             <TabsTrigger
               key={value}
               value={value}
-              className="rounded-b-none hover:bg-white/5 after:origin-left after:scale-x-0 after:bg-primary after:opacity-100 after:transition-transform after:duration-300 data-active:after:scale-x-100 group-data-horizontal/tabs:after:bottom-[-1px]"
+              className="rounded-b-none hover:bg-white/5 max-lg:min-h-11 after:origin-left after:scale-x-0 after:bg-primary after:opacity-100 after:transition-transform after:duration-300 data-active:after:scale-x-100 group-data-horizontal/tabs:after:bottom-[-1px]"
             >
               {name}
             </TabsTrigger>
