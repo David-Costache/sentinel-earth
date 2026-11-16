@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { eventsToCsv, eventsToGeoJson } from "@/lib/geo";
+import { bearingAndDistance, eventsToCsv, eventsToGeoJson } from "@/lib/geo";
 import { colorOf, LAYERS } from "@/lib/layers";
 import type { EonetEvent, EpicImage, Feed, Neo, SpaceEvent } from "@/lib/types";
 import About from "./About";
 import Analyst from "./Analyst";
 import Clock from "./Clock";
 import Dashboard from "./Dashboard";
+import GroundHud from "./GroundHud";
+import type { Waypoint } from "./GroundLayer";
 import GlobeView from "./GlobeView";
 import NeoPanel from "./NeoPanel";
 import SpacePanel from "./SpacePanel";
@@ -77,7 +79,12 @@ export default function Sentinel() {
   const [eventId, setEventId] = useState(start.get("event") ?? "");
   const [neoDes, setNeoDes] = useState("");
   const [space, setSpace] = useState(start.get("view") === "space");
-  const [view, setView] = useState<"globe" | "dashboard">(start.get("view") === "dashboard" ? "dashboard" : "globe");
+  const [view, setView] = useState<"globe" | "dashboard" | "ground">(() => {
+    const v = start.get("view");
+    return v === "dashboard" || v === "ground" ? v : "globe";
+  });
+  const [notice, setNotice] = useState("");
+  const returnFocus = useRef<Element | null>(null);
   const [tab, setTab] = useState(start.get("view") === "space" ? "incoming" : "events");
   const [hidden, setHidden] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -120,7 +127,7 @@ export default function Sentinel() {
   useEffect(() => {
     const p = new URLSearchParams({ layer: layerId, date });
     if (eventId) p.set("event", eventId);
-    if (view === "dashboard") p.set("view", "dashboard");
+    if (view === "dashboard" || view === "ground") p.set("view", view);
     else if (space) p.set("view", "space");
     window.history.replaceState(null, "", `?${p}`);
   }, [layerId, date, eventId, space, view]);
@@ -132,6 +139,59 @@ export default function Sentinel() {
   }, [playing]);
 
   const selectEvent = useCallback((id: string) => { setEventId(id); setSpace(false); setView("globe"); }, []);
+
+  // Ground view: stand at the selected event.
+  const enterGround = useCallback(() => {
+    if (!selected) return;
+    returnFocus.current = document.activeElement;
+    setSpace(false);
+    setView("ground");
+  }, [selected]);
+  const exitGround = useCallback(() => setView("globe"), []);
+  const stepGround = useCallback((d: 1 | -1) => {
+    if (!visible.length) return;
+    const i = visible.findIndex((e) => e.id === eventId);
+    setEventId(visible[(i + d + visible.length) % visible.length].id);
+  }, [visible, eventId]);
+  const waypoints = useMemo<Waypoint[]>(() => {
+    if (view !== "ground" || !selected) return [];
+    return visible
+      .filter((e) => e.id !== selected.id)
+      .map((e) => ({ ...e, ...bearingAndDistance(selected.lat, selected.lng, e.lat, e.lng) }))
+      .filter((e) => e.km <= 1000)
+      .sort((a, b) => a.km - b.km)
+      .slice(0, 12);
+  }, [view, selected, visible]);
+
+  // A shared link can name an event that has since closed: fall back to the globe and say why.
+  // Adjusted while rendering (not in an effect) so the ground view never flashes up first.
+  if (view === "ground" && (events.feed || events.error) && !selected) {
+    setView("globe");
+    setNotice(events.error ? "The event list could not load, so ground view is not available yet. Try again shortly." : "The event in that link is no longer open, so you are on the globe instead.");
+  }
+
+  // Hand focus back to whatever opened the ground view.
+  const wasGround = useRef(view === "ground");
+  useEffect(() => {
+    if (wasGround.current && view === "globe") {
+      const el = returnFocus.current as HTMLElement | null;
+      requestAnimationFrame(() => (el?.isConnected ? el.focus() : document.querySelector<HTMLElement>("li > button[aria-expanded=true]")?.focus()));
+    }
+    wasGround.current = view === "ground";
+  }, [view]);
+
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
+      if (view === "ground") {
+        if (e.key === "Escape") exitGround();
+        else if (e.key === "]") stepGround(1);
+        else if (e.key === "[") stepGround(-1);
+      } else if (view === "globe" && (e.key === "g" || e.key === "G") && selected) enterGround();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [view, selected, enterGround, exitGround, stepGround]);
   const showNeo = useCallback((des: string) => { setNeoDes(des); setSpace(true); setTab("incoming"); setView("globe"); }, []);
   const selectNeo = useCallback((des: string) => setNeoDes(des), []);
   const cite = useCallback((ref: string) => {
@@ -196,6 +256,7 @@ export default function Sentinel() {
                     {e.track && `, ${e.track.length} tracked positions`}
                   </p>
                   <div className="flex flex-wrap gap-2">
+                    <Button size="xs" onClick={enterGround}>Ground view</Button>
                     <Button size="xs" variant="outline" onClick={() => { setDate(DATES.includes(e.date.slice(0, 10)) ? e.date.slice(0, 10) : date); setLayerId(e.category === "wildfires" ? "burn" : e.category === "severeStorms" ? "truecolor" : layerId); }}>
                       See that day&apos;s imagery
                     </Button>
@@ -239,7 +300,7 @@ export default function Sentinel() {
 
   return (
     <main className="relative h-svh overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-[46svh] lg:h-full" onPointerDown={dismissHint}>
+      <div className={view === "ground" ? "absolute inset-0" : "absolute inset-x-0 top-0 h-[46svh] lg:h-full"} onPointerDown={dismissHint}>
         <GlobeView
           layer={layer}
           date={date}
@@ -252,8 +313,37 @@ export default function Sentinel() {
           density={density}
           onSelect={selectEvent}
           onSelectNeo={selectNeo}
+          ground={view === "ground" ? selected : undefined}
+          waypoints={waypoints}
+          onGroundPick={setEventId}
         />
       </div>
+
+      {view === "ground" && selected && (
+        <GroundHud
+          event={selected}
+          position={visible.findIndex((e) => e.id === selected.id) + 1 || 1}
+          total={visible.length}
+          nearby={waypoints.length}
+          onExit={exitGround}
+          onStep={stepGround}
+        />
+      )}
+
+      {view === "ground" && !selected && (
+        <div role="status" className="hud absolute left-1/2 top-1/2 flex w-[min(420px,calc(100%-1.5rem))] -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-xl px-4 py-3 text-sm">
+          <span aria-hidden className="skeleton size-5 shrink-0 rounded-full" />
+          <span className="flex-1">Loading the event for ground view…</span>
+          <Button variant="outline" className="h-11 lg:h-9" onClick={exitGround}>Back to globe</Button>
+        </div>
+      )}
+
+      {notice && (
+        <div role="status" className="hud absolute left-1/2 top-3 z-10 flex w-[min(520px,calc(100%-1.5rem))] -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm">
+          <span className="flex-1">{notice}</span>
+          <Button variant="ghost" size="sm" onClick={() => setNotice("")}>Dismiss</Button>
+        </div>
+      )}
 
       {view === "dashboard" && (
         <Dashboard header={brand} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
@@ -266,7 +356,7 @@ export default function Sentinel() {
       )}
 
       {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
-      <div className={view === "dashboard" ? "hidden" : "contents"}>
+      <div className={view === "globe" ? "contents" : "hidden"}>
       {desktop ? (
         <aside className="hud absolute bottom-4 left-4 top-4 flex w-[340px] flex-col gap-4 rounded-xl p-4">
           {brand}

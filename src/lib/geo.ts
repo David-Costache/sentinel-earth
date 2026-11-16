@@ -2,16 +2,47 @@ import type { EonetEvent } from "./types";
 
 const DAY = 86_400_000;
 
+const RAD = Math.PI / 180;
+const EARTH_KM = 6371;
+const wrap360 = (deg: number) => ((deg % 360) + 360) % 360;
+
+const dayOfYear = (now: Date) => (now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 0)) / DAY;
+const utcHours = (now: Date) => now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+
+// Minutes the sundial runs ahead of the clock.
+function equationOfTime(now: Date) {
+  const b = (2 * Math.PI * (dayOfYear(now) - 81)) / 364;
+  return 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+}
+
 // Where the sun is overhead right now. Accurate to about a degree, which is plenty for a terminator line.
 export function subsolarPoint(now: Date) {
-  const n = (now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 0)) / DAY;
-  const b = (2 * Math.PI * (n - 81)) / 364;
-  const equationOfTime = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b); // minutes
-  const hours = now.getUTCHours() + now.getUTCMinutes() / 60;
   return {
-    lat: -23.44 * Math.cos((2 * Math.PI * (n + 10)) / 365),
-    lng: ((((12 - hours - equationOfTime / 60) * 15 + 540) % 360) + 360) % 360 - 180,
+    lat: -23.44 * Math.cos((2 * Math.PI * (dayOfYear(now) + 10)) / 365),
+    lng: wrap360((12 - utcHours(now) - equationOfTime(now) / 60) * 15 + 180) - 180,
   };
+}
+
+// Great-circle distance, and the initial compass bearing (0 = north, 90 = east) from A towards B.
+export function bearingAndDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const [p1, p2, dl] = [lat1 * RAD, lat2 * RAD, (lng2 - lng1) * RAD];
+  const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return { bearing: wrap360(Math.atan2(y, x) / RAD), km: 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(h))) };
+}
+
+// The sun's height above the horizon (degrees, negative below it) and its compass direction, seen from a place.
+// Geometric: ignores refraction, so near the horizon it can be about half a degree low.
+export function sunElevation(lat: number, lng: number, now: Date) {
+  const s = subsolarPoint(now);
+  const { bearing, km } = bearingAndDistance(lat, lng, s.lat, s.lng);
+  return { elevation: 90 - km / EARTH_KM / RAD, azimuth: bearing };
+}
+
+// Apparent solar time at a longitude, in hours 0-24: 12 is when the sun is highest.
+export function localSolarTime(lng: number, now: Date) {
+  return (((utcHours(now) + lng / 15 + equationOfTime(now) / 60) % 24) + 24) % 24;
 }
 
 // shortcut: rough bounding boxes, good for a dashboard tally; swap for real boundaries if regions ever drive decisions.

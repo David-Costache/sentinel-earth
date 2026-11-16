@@ -1,6 +1,30 @@
 // Logic checks for the pure helpers. Run: npm run selfcheck
 import assert from "node:assert/strict";
-import { eventsToCsv, eventsToGeoJson, regionOf, subsolarPoint } from "../src/lib/geo.ts";
+import { bearingAndDistance, eventsToCsv, eventsToGeoJson, localSolarTime, regionOf, subsolarPoint, sunElevation } from "../src/lib/geo.ts";
+
+const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} not within ${tol} of ${b}`);
+
+// Ground view geometry.
+const equinoxNoon = new Date("2026-03-20T12:00:00Z");
+near(sunElevation(0, 0, equinoxNoon).elevation, 90, 2.5, "sun overhead at the equator, equinox noon");
+assert.ok(sunElevation(0, 180, equinoxNoon).elevation < -80, "sun far below the horizon at local midnight");
+assert.ok(sunElevation(51.5, 0, new Date("2026-06-21T00:00:00Z")).elevation < 0, "London midsummer midnight is still below the horizon");
+near(sunElevation(51.5, 0, new Date("2026-06-21T12:00:00Z")).elevation, 62, 1.5, "London midsummer noon");
+near(sunElevation(40, -100, new Date("2026-03-20T15:00:00Z")).azimuth, 120, 15, "morning sun in the south-east");
+
+near(bearingAndDistance(0, 0, 10, 0).bearing, 0, 1e-9, "due north");
+near(bearingAndDistance(0, 0, 0, 10).bearing, 90, 1e-9, "due east");
+near(bearingAndDistance(0, 0, -10, 0).bearing, 180, 1e-9, "due south");
+near(bearingAndDistance(0, 10, 0, 0).bearing, 270, 1e-9, "due west");
+near(bearingAndDistance(0, 0, 1, 0).km, 111.2, 0.2, "one degree of latitude");
+const dateLine = bearingAndDistance(0, 179, 0, -179);
+near(dateLine.bearing, 90, 1e-6, "across the date line is east, not west");
+near(dateLine.km, 222.4, 0.5, "across the date line is short");
+near(bearingAndDistance(-59.8, -43.3, -60.5, -42).km, 104, 3, "Southern Ocean distance");
+
+near(localSolarTime(0, equinoxNoon), 11.87, 0.1, "Greenwich solar time at 12:00 UTC in March");
+near(localSolarTime(90, equinoxNoon), 17.87, 0.1, "solar time 90° east is six hours later");
+near(localSolarTime(-180, equinoxNoon), 23.87, 0.1, "solar time wraps at the date line");
 
 // Sun: overhead near the equator and the Greenwich meridian at noon UTC on the March equinox,
 // and at the Tropic of Cancer in late June.

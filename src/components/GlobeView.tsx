@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { subsolarPoint } from "@/lib/geo";
 import { colorOf, tileUrl, type Layer } from "@/lib/layers";
 import type { EonetEvent, Neo } from "@/lib/types";
+import GroundLayer, { type Waypoint } from "./GroundLayer";
 
 const ACCENT = "#FFB238";
 const DAY = 86_400_000;
@@ -195,11 +196,14 @@ type Props = {
   density: boolean;
   onSelect: (id: string) => void;
   onSelectNeo: (des: string) => void;
+  ground?: EonetEvent; // when set, the camera stands at this event
+  waypoints?: Waypoint[];
+  onGroundPick?: (id: string) => void;
 };
 
-type Rig = { lit: THREE.IUniform; fill: THREE.IUniform; sun: THREE.Vector3; beam: THREE.Mesh; relight: () => void };
+type Rig = { lit: THREE.IUniform; fill: THREE.IUniform; sun: THREE.Vector3; beam: THREE.Mesh; shell: THREE.Object3D; relight: () => void };
 
-export default function GlobeView({ layer, date, events, selected, neos, selectedNeo, space, night, density, onSelect, onSelectNeo }: Props) {
+export default function GlobeView({ layer, date, events, selected, neos, selectedNeo, space, night, density, onSelect, onSelectNeo, ground, waypoints = [], onGroundPick }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const readout = useRef<HTMLParagraphElement>(null);
   const globe = useRef<GlobeMethods | undefined>(undefined);
@@ -208,6 +212,12 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
   const [ready, setReady] = useState(false);
   const [now] = useState(Date.now);
   const calm = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
+  const groundRef = useRef(ground);
+  useEffect(() => {
+    groundRef.current = ground;
+  }, [ground]);
+  // NASA serves each layer to a fixed zoom level; asking for more would only fetch errors.
+  const maxLevel = Number(layer.matrix.match(/Level(\d+)$/)?.[1] ?? 7);
 
   useEffect(() => {
     const el = box.current!;
@@ -220,21 +230,23 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
   const age = (e: EonetEvent) => (now - new Date(e.date).getTime()) / DAY;
 
   const paths = useMemo(() => {
+    // From the ground, only the event's own track, laid on the surface (globe tracks float 38 km up).
+    if (ground) return ground.track ? [{ track: ground.track.map(([lat, lng]) => [lat, lng, 0.00008]), color: rgba(colorOf(ground.category), 1), flow: true }] : [];
     const tracks = events.filter((e) => e.track).map((e) => ({ track: e.track!.map(([lat, lng]) => [lat, lng, 0.006]), color: rgba(colorOf(e.category), 0.9), flow: true }));
     return space ? [...tracks, moonOrbit] : tracks;
-  }, [events, space]);
+  }, [events, space, ground]);
 
   // A soft pulse marks what is new: events reported in the last 48 hours, plus the selected one.
   const rings = useMemo(() => {
-    if (space) return [];
+    if (space || ground) return [];
     const fresh = calm ? [] : events.filter((e) => (now - new Date(e.date).getTime()) / DAY <= 2 && e.id !== selected?.id);
     return selected ? [...fresh, selected] : fresh;
-  }, [events, selected, space, calm, now]);
+  }, [events, selected, space, calm, now, ground]);
 
   // One object layer: event beacons on Earth, or asteroids in the near-Earth view.
   const things = useMemo(
-    () => (space ? neos.map((n) => ({ ...n, ...bearing(n.des), alt: ldToAltitude(n.distLd) })) : events.map((e) => ({ ...e, alt: 0.012 }))),
-    [neos, events, space],
+    () => (space ? neos.map((n) => ({ ...n, ...bearing(n.des), alt: ldToAltitude(n.distLd) })) : ground ? [] : events.map((e) => ({ ...e, alt: 0.012 }))),
+    [neos, events, space, ground],
   );
 
   // Scene dressing: stars, Blue Marble base, the sky shell, the beam, and lights that follow the real sun.
@@ -263,7 +275,7 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
       sunlight.intensity = Math.PI * (lit.value ? SUNLIGHT : 0);
     };
     relight();
-    rig.current = { lit, fill, sun, beam, relight };
+    rig.current = { lit, fill, sun, beam, shell: parts[1], relight };
     const clock = setInterval(relight, 60_000);
 
     let engine: THREE.Object3D | undefined;
@@ -300,17 +312,22 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
     r.relight();
   }, [night, layer, ready]);
 
+  // The city-lights shell sits 22 km up; flying down through it would smear the lights across the view.
+  useEffect(() => {
+    if (rig.current) rig.current.shell.visible = !ground;
+  }, [ground, ready]);
+
   // Stand the beam on the selected event.
   useEffect(() => {
     const g = globe.current, r = rig.current;
     if (!ready || !g || !r) return;
-    r.beam.visible = !!selected && !space;
+    r.beam.visible = !!selected && !space && !ground;
     if (!selected) return;
     const p = g.getCoords(selected.lat, selected.lng, 0);
     const up = new THREE.Vector3(p.x, p.y, p.z).normalize();
     r.beam.position.copy(up).multiplyScalar(100 + 11.5);
     r.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), up); // narrow end on the ground
-  }, [ready, selected, space]);
+  }, [ready, selected, space, ground]);
 
   // One orchestrated moment: fall in from deep space on load.
   useEffect(() => {
@@ -332,7 +349,7 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
 
   useEffect(() => {
     const g = globe.current;
-    if (!ready || !g || !selected || space) return;
+    if (!ready || !g || !selected || space || groundRef.current) return; // the ground view flies itself
     g.controls().autoRotate = false;
     g.pointOfView({ lat: selected.lat, lng: selected.lng, altitude: 0.9 }, calm ? 0 : 1600);
   }, [ready, selected, space, calm]);
@@ -357,7 +374,7 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
   return (
     <div
       ref={box}
-      className="relative h-full w-full"
+      className="relative isolate h-full w-full"
       role="img"
       aria-label="3D globe of Earth with NASA satellite imagery and event markers. The lists beside it hold the same information."
       onMouseMove={track}
@@ -371,7 +388,9 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
           onGlobeReady={() => setReady(true)}
           backgroundColor="rgba(0,0,0,0)"
           globeTileEngineUrl={tiles}
-          showGraticules
+          // A real globe.gl prop that react-globe.gl's types leave out.
+          {...({ globeTileEngineMaxLevel: maxLevel } as object)}
+          showGraticules={!ground}
           atmosphereColor="#4DA3FF"
           atmosphereAltitude={0.26}
           ringsData={rings}
@@ -385,7 +404,7 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
           ringMaxRadius={(e: object) => ((e as EonetEvent).id === selected?.id ? 4 : 2.4)}
           ringPropagationSpeed={calm ? 0 : 1.6}
           ringRepeatPeriod={1300}
-          hexBinPointsData={density && !space ? events : []}
+          hexBinPointsData={density && !space && !ground ? events : []}
           hexBinPointLat="lat"
           hexBinPointLng="lng"
           hexBinResolution={3}
@@ -433,7 +452,8 @@ export default function GlobeView({ layer, date, events, selected, neos, selecte
           }}
         />
       )}
-      <p ref={readout} aria-hidden className="pointer-events-none absolute bottom-24 left-1/2 hidden -translate-x-1/2 whitespace-pre text-xs tabular-nums text-muted-foreground [text-shadow:0_1px_4px_#0a1128] lg:block" />
+      {ground && onGroundPick && <GroundLayer globe={globe} ready={ready} event={ground} waypoints={waypoints} calm={calm} onPick={onGroundPick} />}
+      <p ref={readout} aria-hidden hidden={!!ground} className="pointer-events-none absolute bottom-24 left-1/2 hidden -translate-x-1/2 whitespace-pre text-xs tabular-nums text-muted-foreground [text-shadow:0_1px_4px_#0a1128] lg:block" />
     </div>
   );
 }
