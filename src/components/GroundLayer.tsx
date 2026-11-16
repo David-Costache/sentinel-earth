@@ -21,6 +21,9 @@ export const compassPoint = (deg: number) => POINTS[Math.round((((deg % 360) + 3
 
 export type Waypoint = EonetEvent & { bearing: number; km: number };
 
+// Compass tape ticks every 5°: three copies of 0-360° so it can scroll past north either way.
+const TICKS = Array.from({ length: 72 * 3 }, (_, i) => i * 5 - 360);
+
 // Sky colours by sun elevation (degrees): night, astronomical and civil twilight, golden hour, day.
 const SKY: [number, string, string][] = [
   [-18, "#040814", "#0b1533"],
@@ -281,9 +284,6 @@ export default function GroundLayer({ globe, ready, event, waypoints, calm, onPi
     };
   }, []);
 
-  // Three copies of 0-360° so the tape can scroll past north in either direction.
-  const ticks = Array.from({ length: 72 * 3 }, (_, i) => i * 5 - 360);
-
   return (
     <>
       {/* Sky behind the transparent canvas: the Earth covers it below the horizon. */}
@@ -298,7 +298,7 @@ export default function GroundLayer({ globe, ready, event, waypoints, calm, onPi
         <div className="absolute inset-x-0 top-3 mx-auto w-[min(560px,calc(100%-2rem))] lg:top-4">
           <div className="hud relative h-12 overflow-hidden rounded-xl" aria-hidden>
             <div ref={tape} className="absolute left-1/2 top-0 h-full">
-              {ticks.map((d) => {
+              {TICKS.map((d) => {
                 const deg = ((d % 360) + 360) % 360;
                 const major = deg % 45 === 0;
                 return (

@@ -6,6 +6,8 @@ Built for the NASA Space Apps Challenge 2026.
 
 ![Sentinel Earth with an event selected](docs/screenshots/desktop-1440-2-event.png)
 
+![Ground view of a wildfire before dawn](docs/screenshots/desktop-1440-9-ground.png)
+
 ![The dashboard](docs/screenshots/desktop-1440-7-dashboard.png)
 
 ## The problem
@@ -17,6 +19,7 @@ Sentinel Earth joins six of those services in one place:
 - **Natural events.** Every open event from NASA EONET for the last 30 days, on the globe and in a list you can search and filter. Moving events such as storms and icebergs show their track. Newer reports draw larger, and events from the last 48 hours pulse.
 - **Satellite imagery over time.** Five NASA GIBS layers (true color, fire and burn scars, sea surface temperature, city lights, Blue Marble) with a 30-day date slider and playback.
 - **A globe that shows the real moment.** The day side is lit from where the sun is right now, the night side shows NASA's Black Marble city lights, and open ocean catches the sun's glint. Gaps between satellite passes are filled from the day before, with Blue Marble underneath. Events glow as beacons, storm and iceberg tracks flow in their direction of travel, and a density layer shows where events cluster.
+- **Ground view.** Stand at any event, about 2 km above the surface, and look around. The sky is coloured from where the sun is at that place right now, with stars after dark. A compass shows which way you face, other open events within 1000 km sit on the horizon at their true bearing and distance, and a moving event's track is drawn on the ground. Step through every event with [ and ], or share a link that opens straight into it.
 - **Dashboard.** Key numbers, event reports per day, breakdowns by type and region, the asteroid timeline, space weather, today's picture of Earth and the freshness of every source. Every chart has a table view, and clicking a mark opens that event or asteroid on the globe.
 - **Space weather.** Coronal mass ejections, geomagnetic storms, high-speed solar wind streams and solar flares from NASA DONKI for the last 30 days.
 - **Earth today.** The latest full-disk photograph from the DSCOVR EPIC camera.
@@ -73,6 +76,7 @@ flowchart LR
 - If a NASA service fails, the server returns its last good answer, or the snapshot bundled in [src/data](src/data), and marks it as saved data. The interface and the dashboard's freshness table say so. The demo never shows an empty screen.
 - The NASA API key is used only on the server. Imagery tiles and the EPIC photograph load in the browser from hosts that need no key.
 - The night side is one shader on a shell above the globe. It reads the sun's position from the clock and blends in a Black Marble texture bundled in [public/night.jpg](public/night.jpg).
+- Ground view reuses the same globe and WebGL canvas. It takes over the camera, shortens the view to just past the horizon so the tile engine only fetches nearby close-up tiles, and caps each layer at the zoom level NASA actually serves. The sky, sun, compass and horizon markers are page elements placed by projecting real directions through the camera. Sun position, bearings and distances come from small functions in [src/lib/geo.ts](src/lib/geo.ts) that `npm run selfcheck` tests.
 - The analyst has three tools, `get_natural_events`, `get_close_approaches` and `get_space_weather`, which read the same cached feeds as the interface. It is told to answer only from tool results and to cite event ids.
 - Event colours follow one fixed palette, checked for colour-blind separation and contrast against the panel background.
 
@@ -106,13 +110,13 @@ npm run dev                  # http://localhost:3000
 ### Checks
 
 ```bash
-npm run selfcheck            # logic: sun position, regions, CSV and GeoJSON export
+npm run selfcheck            # logic: sun position, bearings, solar time, regions, CSV and GeoJSON export
 npm run build
 npx next start -p 3001       # on Windows, scripts/restart.ps1 rebuilds and restarts it
 npm run verify               # in a second terminal
 ```
 
-`npm run verify` drives the app in Microsoft Edge at 1440px and 375px. It selects an event, searches, downloads both exports, opens every tab and the dashboard, waits for the EPIC photograph, saves screenshots to [docs/screenshots](docs/screenshots) and fails on any console error or failed request. Set `BROWSER_CHANNEL=chrome` to use Chrome. Set `ANTHROPIC_CHECK=1` to also wait for a live analyst answer.
+`npm run verify` drives the app in Microsoft Edge at 1440px and 375px. It selects an event, searches, downloads both exports, opens every tab and the dashboard, and waits for the EPIC photograph. Then it opens the ground view, checks the HUD, turns with the arrow keys and checks that Esc puts the camera back where it was. With motion reduced, it starts from a shared link to the highest-latitude event and steps through every event. It saves screenshots to [docs/screenshots](docs/screenshots) and fails on any console error or failed request. Two exceptions are expected and counted: the analyst's 503 without a key, and a NASA imagery tile that has no data for its day (404). Set `BROWSER_CHANNEL=chrome` to use Chrome. Set `ANTHROPIC_CHECK=1` to also wait for a live analyst answer.
 
 ### Deploy
 
@@ -127,9 +131,9 @@ Add `NASA_API_KEY` and `ANTHROPIC_API_KEY` in the Vercel project settings first.
 1. **0:00 Open the app.** The camera falls in from deep space onto today's Terra imagery, daylit side first. Drag the globe to the night side: "That line is where the sun is setting right now, and those are real city lights." "Everything here is live NASA data. Nothing is mocked."
 2. **0:15 Events.** Turn Wildfires off and on. Type "Iceberg" in the search box. Click a storm: the globe flies there and shows its track. Pulsing markers are reports from the last 48 hours.
 3. **0:35 Imagery over time.** Click "See that day's imagery". Switch the layer to "Fire and burn scars" on a wildfire. Press Play and let a few days run. Turn on Density to show where events cluster.
-4. **0:50 Dashboard.** Switch to Dashboard. Read the four key numbers. Hover the reports chart, open "Show as table" once, point at today's EPIC photograph and the freshness table. Click a bar: it lands back on the globe at that event.
-5. **1:10 Space weather.** Open the Sun tab. "Ninety-odd solar eruptions and one geomagnetic storm this month, from NASA's DONKI."
-6. **1:20 Asteroids.** Open the Asteroids tab. Read the closest pass against the Moon's distance line. Click "Show them around Earth".
+4. **0:45 Ground view.** On a selected wildfire, click "Ground view": the camera descends and you stand at the fire. "The sky is the real sky over that fire right now. Those markers on the horizon are the other fires within 1000 km, at their true bearing." Drag to look around, press ] to jump to the next event, then Esc to come back to exactly where you were.
+5. **1:05 Dashboard.** Switch to Dashboard. Read the four key numbers. Hover the reports chart, point at today's EPIC photograph and the freshness table. Click a bar: it lands back on the globe at that event.
+6. **1:20 Space weather and asteroids.** Open the Sun tab: "Ninety-odd solar eruptions and one geomagnetic storm this month, from NASA's DONKI." Then the Asteroids tab: read the closest pass against the Moon's distance line.
 7. **1:35 Analyst.** Ask: "Which active wildfires are near populated areas this week?" Click a citation in the answer and the globe flies to it. "The model can only answer from the feeds, and it shows its sources."
 8. **1:50 Share and export.** Click "Copy link" and open it in a new tab: same view. Download the GeoJSON. "If NASA's service goes down mid-demo, the app serves its last saved data and tells you."
 
@@ -140,6 +144,7 @@ Add `NASA_API_KEY` and `ANTHROPIC_API_KEY` in the Vercel project settings first.
 - EONET positions are points. For events reported as polygons, the first vertex is used.
 - Regions on the dashboard are rough boxes around each continent, labelled as approximate.
 - The day/night line is accurate to about a degree. The city lights are a 2016 composite.
+- Ground view is a perspective over satellite imagery at about 250 m per pixel, not street level, and the ground is flat (no terrain heights). The sun position ignores atmospheric refraction, so near the horizon it can read about half a degree low. Horizon markers show true bearing and distance, but most sit beyond the real horizon, so they are drawn on it rather than hidden.
 - NASA's DONKI solar-flare endpoint was returning an error while this was built, so flares are coded from its documentation and have not been seen working. The other three space weather feeds were checked live.
 - There is no population layer. When asked about populated areas, the analyst reasons from coordinates and says it is an estimate.
 - The server cache lives in memory, per instance.

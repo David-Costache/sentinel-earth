@@ -69,7 +69,9 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
   assert.equal(JSON.parse(await readFile(await geoFile.path(), "utf8")).features.length, found);
   await page.getByRole("searchbox", { name: "Search events by name" }).fill("");
 
-  // Night side off and density on both leave the page healthy.
+  // Night side off and density on both leave the page healthy. On a phone these tools start folded away.
+  const tools = page.getByRole("button", { name: "Date and tools" });
+  if (await tools.isVisible()) await tools.click();
   await page.getByRole("button", { name: "Density" }).click();
   await page.waitForTimeout(1500);
   await page.getByRole("button", { name: "Density" }).click();
@@ -103,7 +105,7 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
   await page.getByRole("heading", { name: "Space weather, last 30 days" }).waitFor();
   const earth = page.getByRole("img", { name: /Full sunlit disk of Earth/ });
   await earth.scrollIntoViewIfNeeded();
-  await page.waitForFunction((img) => img.complete && img.naturalWidth > 0, await earth.elementHandle(), { timeout: 30_000 });
+  await page.waitForFunction((img) => img.complete && img.naturalWidth > 0, await earth.elementHandle(), { timeout: 60_000 }); // the EPIC archive can take a while on a cold fetch
   await shot("8-dashboard-earth");
   await page.getByRole("heading", { name: "Sentinel Earth" }).scrollIntoViewIfNeeded();
   await page.getByText("Show as table").first().click();
@@ -118,11 +120,81 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `${name}: page scrolls sideways by ${overflow}px`);
+
+  // Ground view: G enters, the HUD shows computed values, arrows turn, Esc returns the camera to where it was.
+  await page.waitForTimeout(2500); // let the globe finish flying to the event
+  await page.keyboard.press("g");
+  await page.waitForURL(/view=ground/);
+  const title = page.getByTestId("ground-title");
+  await title.waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Exit ground view", "focus moves to the exit button");
+  assert.match(await page.getByTestId("ground-solar").innerText(), /^\d\d:\d\d$/, "local solar time renders");
+  assert.match(await page.getByTestId("ground-sun").innerText(), /^\d+° (above|below) the horizon/, "sun elevation renders");
+  await page.waitForTimeout(3500);
+  await shot("9-ground");
+  const facing = page.getByText(/^Facing /);
+  const before = await facing.innerText();
+  for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(300);
+  assert.notEqual(await facing.innerText(), before, "arrow keys turn the view");
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, `${name}: ground view scrolls sideways`);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !location.search.includes("view=ground"));
+  const host = page.locator("[data-pov-after]");
+  await host.waitFor({ state: "attached", timeout: 5000 });
+  const [was, now] = await Promise.all(["data-pov-before", "data-pov-after"].map(async (a) => JSON.parse(await host.getAttribute(a))));
+  assert.ok(Math.abs(was.lat - now.lat) < 0.5 && Math.abs(was.lng - now.lng) < 0.5 && Math.abs(was.altitude - now.altitude) < 0.05, `camera restored: ${JSON.stringify(was)} vs ${JSON.stringify(now)}`);
   await page.close();
+
+  // Every event, with motion reduced so each move is an instant cut. Starts from a shared link to the
+  // highest-latitude event, then steps with ] until it has visited them all.
+  const calm = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
+  calm.on("console", (m) => m.type() === "error" && problems.push(`${name} calm console: ${m.text()}`));
+  calm.on("pageerror", (e) => problems.push(`${name} calm pageerror: ${e.message}`));
+  calm.on("response", (r) => r.status() >= 400 && problems.push(`${name} calm ${r.status()} ${r.url()}`));
+  const events = (await (await calm.request.get(`${base}/api/events`)).json()).items;
+  const polar = events.reduce((a, e) => (Math.abs(e.lat) > Math.abs(a.lat) ? e : a));
+  await calm.goto(`${base}/?view=ground&event=${polar.id}`);
+  const calmTitle = calm.getByTestId("ground-title");
+  await calmTitle.waitFor({ timeout: 30_000 });
+  // Visible text collapses runs of spaces, and some NASA titles contain them.
+  const same = (a, b) => assert.equal(a.replace(/\s+/g, " ").trim(), (b ?? "").replace(/\s+/g, " ").trim());
+  same(await calmTitle.innerText(), polar.title); // a shared ground-view link opens that event
+  const seen = new Set([polar.id]);
+  for (let i = 1; i < events.length; i++) {
+    const id = new URL(calm.url()).searchParams.get("event");
+    await calm.keyboard.press("]");
+    await calm.waitForFunction((prev) => new URLSearchParams(location.search).get("event") !== prev, id, { timeout: 5000 });
+    const next = new URL(calm.url()).searchParams.get("event");
+    same(await calmTitle.innerText(), events.find((e) => e.id === next)?.title);
+    seen.add(next);
+    await calm.waitForTimeout(400); // gentle on NASA's tile servers
+  }
+  assert.equal(seen.size, events.length, `visited ${seen.size} of ${events.length} events`);
+
+  // A link to an event that has closed falls back to the globe and says so.
+  await calm.goto(`${base}/?view=ground&event=EONET_0`);
+  await calm.getByText("The event in that link is no longer open").waitFor({ timeout: 30_000 });
+  await calm.close();
 }
 
 await browser.close();
-// Without a key the analyst route answers 503 by design; that is the only tolerated failure.
-const real = problems.filter((p) => process.env.ANTHROPIC_CHECK || !/503|api\/analyst/.test(p));
+
+// Two failures are expected and do not fail the check:
+// - the analyst route answers 503 by design when there is no ANTHROPIC_API_KEY;
+// - NASA GIBS answers 404 for an imagery tile that has no data for that day (orbit gaps, days still
+//   being processed). The ground view asks for many close-up tiles, so it meets these; the app shows
+//   the day before or the Blue Marble there instead. The browser still logs each one as a console error.
+// Everything else fails: any request to this app, any other host or status, any other console message.
+let analyst = 0, noTile = 0;
+const rest = problems.filter((p) => {
+  if (!process.env.ANTHROPIC_CHECK && /503|api\/analyst/.test(p)) return !++analyst;
+  if (/ 404 https:\/\/gibs\.earthdata\.nasa\.gov\/wmts\/.+\.(jpe?g|png)$/.test(p)) return !++noTile;
+  return true;
+});
+// Pair each tolerated tile 404 with the one generic console line the browser writes for it.
+let pairs = noTile;
+const real = rest.filter((p) => !(pairs > 0 && /console: Failed to load resource: the server responded with a status of 404/.test(p) && pairs--));
+if (noTile) console.log(`${noTile} NASA imagery tiles had no data for their day (404); the app fell back to other imagery.`);
 console.log(real.length ? real.join("\n") : "No console errors or failed requests.");
 process.exit(real.length ? 1 : 0);
