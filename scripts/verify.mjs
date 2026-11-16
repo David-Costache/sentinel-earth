@@ -22,8 +22,24 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
 
   await page.goto(base);
   await page.getByRole("heading", { name: "Sentinel Earth" }).waitFor();
+
+  // First visit: the intro shows live counts and keeps the console out of the way until it is dismissed.
+  const intro = page.getByRole("region", { name: "Welcome" });
+  await intro.waitFor();
+  await page.waitForFunction(
+    () => /\d+ natural events are open right now, and \d+ asteroids pass within 20 lunar distances/.test(document.querySelector("[data-testid=intro-fact]")?.textContent ?? ""),
+    null,
+    { timeout: 30_000 },
+  );
+  assert.equal(await rows.first().isVisible(), false, "the console is hidden behind the intro");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Open the console", "focus starts on the intro button");
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("[data-intro] h1")).animationName), "intro-rise", "the entrance animates with normal motion");
+  await page.waitForTimeout(9000); // fly-in and imagery tiles behind the panel
+  await shot("0-intro");
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, `${name}: intro scrolls sideways`);
+  await page.getByRole("button", { name: "Open the console" }).click();
+  await intro.waitFor({ state: "detached" });
   await rows.first().waitFor({ timeout: 30_000 });
-  await page.waitForTimeout(9000); // intro fly-in and imagery tiles
   await shot("1-overview");
 
   // Mission clock ticks in UTC.
@@ -175,26 +191,63 @@ for (const [name, width, height] of [["desktop-1440", 1440, 900], ["mobile-375",
   // A link to an event that has closed falls back to the globe and says so.
   await calm.goto(`${base}/?view=ground&event=EONET_0`);
   await calm.getByText("The event in that link is no longer open").waitFor({ timeout: 30_000 });
+  assert.equal(await calm.getByRole("region", { name: "Welcome" }).count(), 0, "a shared link skips the intro");
   await calm.close();
+
+  // The intro: Enter and Esc each open the console, it stays gone after a reload, an event link skips it,
+  // and with motion reduced it is still and fully visible.
+  const watch = (p, tag) => {
+    p.on("console", (m) => m.type() === "error" && problems.push(`${name} ${tag} console: ${m.text()}`));
+    p.on("pageerror", (e) => problems.push(`${name} ${tag} pageerror: ${e.message}`));
+    p.on("response", (r) => r.status() >= 400 && problems.push(`${name} ${tag} ${r.status()} ${r.url()}`));
+  };
+  for (const key of ["Enter", "Escape"]) {
+    const p = await browser.newPage({ viewport: { width, height } });
+    watch(p, key);
+    await p.goto(base);
+    const welcome = p.getByRole("region", { name: "Welcome" });
+    await welcome.waitFor();
+    await p.keyboard.press(key);
+    await welcome.waitFor({ state: "detached" });
+    await p.getByText("Drag to rotate. Click a marker for details.").waitFor(); // the hint follows the intro
+    await p.reload();
+    await p.locator("li > button[aria-expanded]").first().waitFor({ timeout: 30_000 });
+    assert.equal(await p.getByRole("region", { name: "Welcome" }).count(), 0, `the intro stays gone after ${key} and a reload`);
+    await p.close();
+  }
+  const linked = await browser.newPage({ viewport: { width, height } });
+  watch(linked, "event link");
+  await linked.goto(`${base}/?event=${polar.id}`);
+  await linked.getByRole("heading", { name: "Sentinel Earth" }).waitFor();
+  assert.equal(await linked.getByRole("region", { name: "Welcome" }).count(), 0, "a link with an event skips the intro");
+  await linked.close();
+  const still = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
+  watch(still, "reduced motion");
+  await still.goto(base);
+  await still.getByRole("region", { name: "Welcome" }).waitFor();
+  assert.deepEqual(await still.evaluate(() => { const c = getComputedStyle(document.querySelector("[data-intro] h1")); return [c.animationName, c.opacity]; }), ["none", "1"], "the intro is still and fully visible when motion is reduced");
+  await still.close();
 }
 
 await browser.close();
 
 // Two failures are expected and do not fail the check:
 // - the analyst route answers 503 by design when there is no ANTHROPIC_API_KEY;
-// - NASA GIBS answers 404 for an imagery tile that has no data for that day (orbit gaps, days still
-//   being processed). The ground view asks for many close-up tiles, so it meets these; the app shows
-//   the day before or the Blue Marble there instead. The browser still logs each one as a console error.
+// - a NASA GIBS imagery tile that fails: a 404 when it has no data for that day (orbit gaps, days still
+//   being processed), or an error with no CORS header when GIBS is busy, which the browser reports as a
+//   CORS block. The ground view asks for many close-up tiles, so it meets these; the app shows the day
+//   before or the Blue Marble there instead. The browser also logs one generic line per failed tile.
 // Everything else fails: any request to this app, any other host or status, any other console message.
 let analyst = 0, noTile = 0;
 const rest = problems.filter((p) => {
   if (!process.env.ANTHROPIC_CHECK && /503|api\/analyst/.test(p)) return !++analyst;
-  if (/ 404 https:\/\/gibs\.earthdata\.nasa\.gov\/wmts\/.+\.(jpe?g|png)$/.test(p)) return !++noTile;
-  return true;
+  const tile404 = / 404 https:\/\/gibs\.earthdata\.nasa\.gov\/wmts\/.+\.(jpe?g|png)$/.test(p);
+  const tileCors = /console: Access to image at 'https:\/\/gibs\.earthdata\.nasa\.gov\/wmts\/[^']+\.(jpe?g|png)' from origin .* blocked by CORS policy/.test(p);
+  return tile404 || tileCors ? !++noTile : true;
 });
-// Pair each tolerated tile 404 with the one generic console line the browser writes for it.
+// Pair each tolerated tile failure with the one generic console line the browser writes for it.
 let pairs = noTile;
-const real = rest.filter((p) => !(pairs > 0 && /console: Failed to load resource: the server responded with a status of 404/.test(p) && pairs--));
-if (noTile) console.log(`${noTile} NASA imagery tiles had no data for their day (404); the app fell back to other imagery.`);
+const real = rest.filter((p) => !(pairs > 0 && /console: Failed to load resource: (the server responded with a status of 404|net::ERR_FAILED)/.test(p) && pairs--));
+if (noTile) console.log(`${noTile} NASA imagery tile requests failed (no data for the day, or GIBS busy); the app fell back to other imagery.`);
 console.log(real.length ? real.join("\n") : "No console errors or failed requests.");
 process.exit(real.length ? 1 : 0);

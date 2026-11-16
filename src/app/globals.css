@@ -157,3 +157,22 @@ li > button:hover, [role="group"] > button:hover {
 @media (prefers-reduced-motion: reduce) {
   .ground-overlay > * { transition: none; }
 }
+
+/* First-screen intro: one entrance, finished by about 1.4 s. */
+.intro-panel {
+  animation: intro-fade 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.intro-rise {
+  opacity: 0;
+  animation: intro-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes intro-fade {
+  from { opacity: 0; }
+}
+@keyframes intro-rise {
+  from { opacity: 0; transform: translateY(20px); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-panel, .intro-rise { animation: none; opacity: 1; }
+}

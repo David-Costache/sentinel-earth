@@ -11,6 +11,7 @@ import Analyst from "./Analyst";
 import Clock from "./Clock";
 import Dashboard from "./Dashboard";
 import GroundHud from "./GroundHud";
+import Intro from "./Intro";
 import type { Waypoint } from "./GroundLayer";
 import GlobeView from "./GlobeView";
 import NeoPanel from "./NeoPanel";
@@ -101,6 +102,16 @@ export default function Sentinel() {
   const [hint, setHint] = useState(() => {
     try { return localStorage.getItem("sentinel-hint") !== "seen"; } catch { return true; }
   });
+  // First-screen intro: once per browser, and never when the link already names a view.
+  const [intro, setIntro] = useState(() => {
+    if (["layer", "date", "event", "view"].some((k) => start.has(k))) return false;
+    try { return localStorage.getItem("sentinel-intro") !== "seen"; } catch { return true; }
+  });
+  const openConsole = useCallback(() => {
+    setIntro(false);
+    try { localStorage.setItem("sentinel-intro", "seen"); } catch { /* it shows again next visit */ }
+    requestAnimationFrame(() => document.querySelector<HTMLElement>("header h1")?.focus({ preventScroll: true }));
+  }, []);
   const dismissHint = () => {
     if (!hint) return;
     setHint(false);
@@ -293,7 +304,7 @@ export default function Sentinel() {
   // a single row with the switch on the right everywhere else.
   const header = (stacked: boolean) => (
     <header className={stacked ? "flex flex-col gap-1" : "grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1"}>
-      <h1 className="font-heading text-xl font-bold leading-tight">Sentinel Earth</h1>
+      <h1 tabIndex={-1} className="font-heading text-xl font-semibold leading-tight outline-none">Sentinel Earth</h1>
       <div role="group" aria-label="View" className={`pointer-events-auto rounded-lg border border-border bg-card/70 p-0.5 ${stacked ? "order-last mt-2 grid grid-cols-2" : "inline-flex"}`}>
         {(["globe", "dashboard"] as const).map((v) => (
           <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className="min-h-10 rounded-md px-3 text-sm capitalize transition-colors hover:bg-white/10 aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground max-lg:min-h-11">
@@ -314,7 +325,7 @@ export default function Sentinel() {
 
   return (
     <main className="relative h-svh overflow-hidden">
-      <div className={view === "ground" ? "absolute inset-0" : `absolute inset-x-0 top-0 lg:h-full ${sheetTall ? "h-[24svh]" : "h-[60svh]"}`} onPointerDown={dismissHint}>
+      <div className={view === "ground" ? "absolute inset-0" : intro ? "absolute inset-0" : `absolute inset-x-0 top-0 lg:h-full ${sheetTall ? "h-[24svh]" : "h-[60svh]"}`} onPointerDown={intro ? undefined : dismissHint}>
         <GlobeView
           layer={layer}
           date={date}
@@ -363,14 +374,16 @@ export default function Sentinel() {
         <Dashboard header={header(false)} events={events.feed} neos={neos.feed} weather={weather.feed} epic={epic.feed} selectedNeo={neoDes} onEvent={selectEvent} onNeo={showNeo} />
       )}
 
-      {hint && view === "globe" && (
+      {intro && view === "globe" && <Intro events={events.feed} neos={neos.feed} failed={!!(events.error || neos.error)} onOpen={openConsole} />}
+
+      {hint && !intro && view === "globe" && (
         <p role="status" className="hud pointer-events-none absolute left-1/2 top-[30svh] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-2 text-sm lg:bottom-32 lg:top-auto">
           Drag to rotate. Click a marker for details.
         </p>
       )}
 
       {/* Hidden, not unmounted, so the analyst conversation survives a visit to the dashboard. */}
-      <div className={view === "globe" ? "contents" : "hidden"}>
+      <div className={view === "globe" && !intro ? "contents" : "hidden"}>
       {desktop ? (
         <aside className="hud absolute bottom-4 left-4 top-4 flex w-[340px] flex-col gap-4 rounded-xl p-4">
           {header(true)}
